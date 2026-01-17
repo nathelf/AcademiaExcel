@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { AuthProvider } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import ContasPagar from "./pages/ContasPagar";
 import ContasReceber from "./pages/ContasReceber";
@@ -17,9 +19,13 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-// Wrapper para páginas que precisam do layout
-function LayoutWrapper({ children }: { children: React.ReactNode }) {
-  return <MainLayout>{children}</MainLayout>;
+// Wrapper para páginas que precisam do layout e proteção
+function ProtectedLayoutWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <MainLayout>{children}</MainLayout>
+    </ProtectedRoute>
+  );
 }
 
 const App = () => (
@@ -28,67 +34,69 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route
-            path="/contas-pagar"
-            element={
-              <LayoutWrapper>
-                <ContasPagar />
-              </LayoutWrapper>
-            }
-          />
-          <Route
-            path="/contas-receber"
-            element={
-              <LayoutWrapper>
-                <ContasReceber />
-              </LayoutWrapper>
-            }
-          />
-          <Route
-            path="/clientes"
-            element={
-              <LayoutWrapper>
-                <Clientes />
-              </LayoutWrapper>
-            }
-          />
-          <Route
-            path="/fornecedores"
-            element={
-              <LayoutWrapper>
-                <Fornecedores />
-              </LayoutWrapper>
-            }
-          />
-          <Route
-            path="/relatorios"
-            element={
-              <LayoutWrapper>
-                <Relatorios />
-              </LayoutWrapper>
-            }
-          />
-          <Route
-            path="/configuracoes"
-            element={
-              <LayoutWrapper>
-                <Configuracoes />
-              </LayoutWrapper>
-            }
-          />
-          <Route
-            path="/plano"
-            element={
-              <LayoutWrapper>
-                <Plano />
-              </LayoutWrapper>
-            }
-          />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route
+              path="/contas-pagar"
+              element={
+                <ProtectedLayoutWrapper>
+                  <ContasPagar />
+                </ProtectedLayoutWrapper>
+              }
+            />
+            <Route
+              path="/contas-receber"
+              element={
+                <ProtectedLayoutWrapper>
+                  <ContasReceber />
+                </ProtectedLayoutWrapper>
+              }
+            />
+            <Route
+              path="/clientes"
+              element={
+                <ProtectedLayoutWrapper>
+                  <Clientes />
+                </ProtectedLayoutWrapper>
+              }
+            />
+            <Route
+              path="/fornecedores"
+              element={
+                <ProtectedLayoutWrapper>
+                  <Fornecedores />
+                </ProtectedLayoutWrapper>
+              }
+            />
+            <Route
+              path="/relatorios"
+              element={
+                <ProtectedLayoutWrapper>
+                  <Relatorios />
+                </ProtectedLayoutWrapper>
+              }
+            />
+            <Route
+              path="/configuracoes"
+              element={
+                <ProtectedLayoutWrapper>
+                  <Configuracoes />
+                </ProtectedLayoutWrapper>
+              }
+            />
+            <Route
+              path="/plano"
+              element={
+                <ProtectedLayoutWrapper>
+                  <Plano />
+                </ProtectedLayoutWrapper>
+              }
+            />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

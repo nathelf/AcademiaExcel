@@ -1,90 +1,41 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DataTable, Column } from "@/components/ui/DataTable";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { EditableCell } from "@/components/ui/EditableCell";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, CheckCircle } from "lucide-react";
+import { Edit, Trash2, CheckCircle, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { ContaReceberModal } from "@/components/contas/ContaReceberModal";
+import { ConfirmPaymentModal } from "@/components/contas/ConfirmPaymentModal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ContaReceber {
   id: string;
-  dataEmissao: string;
-  dataVencimento: string;
-  cliente: string;
+  data_emissao: string;
+  data_vencimento: string;
+  cliente_id: string | null;
+  cliente_nome: string | null;
   descricao: string;
-  categoria: string;
+  categoria_id: string | null;
+  categoria_nome: string | null;
   valor: number;
-  formaRecebimento: string;
+  forma_pagamento_id: string | null;
+  forma_pagamento_nome: string | null;
   status: "pago" | "pendente" | "atrasado";
-  dataRecebimento: string | null;
-  observacoes: string;
+  data_recebimento: string | null;
+  observacoes: string | null;
 }
-
-const mockData: ContaReceber[] = [
-  {
-    id: "1",
-    dataEmissao: "2024-01-03",
-    dataVencimento: "2024-01-18",
-    cliente: "Empresa ABC Ltda",
-    descricao: "Serviços de consultoria",
-    categoria: "Serviços",
-    valor: 15000.0,
-    formaRecebimento: "Transferência",
-    status: "pago",
-    dataRecebimento: "2024-01-17",
-    observacoes: "",
-  },
-  {
-    id: "2",
-    dataEmissao: "2024-01-05",
-    dataVencimento: "2024-01-20",
-    cliente: "Tech Solutions",
-    descricao: "Venda de produtos",
-    categoria: "Produtos",
-    valor: 8500.0,
-    formaRecebimento: "Boleto",
-    status: "pendente",
-    dataRecebimento: null,
-    observacoes: "Cliente pediu 3 dias de prazo",
-  },
-  {
-    id: "3",
-    dataEmissao: "2024-01-01",
-    dataVencimento: "2024-01-10",
-    cliente: "Comércio Delta",
-    descricao: "Manutenção mensal",
-    categoria: "Manutenção",
-    valor: 3200.0,
-    formaRecebimento: "PIX",
-    status: "atrasado",
-    dataRecebimento: null,
-    observacoes: "Entrar em contato",
-  },
-  {
-    id: "4",
-    dataEmissao: "2024-01-10",
-    dataVencimento: "2024-01-25",
-    cliente: "Indústria Beta",
-    descricao: "Projeto customizado",
-    categoria: "Projetos",
-    valor: 25000.0,
-    formaRecebimento: "Transferência",
-    status: "pendente",
-    dataRecebimento: null,
-    observacoes: "Pagamento parcelado 2x",
-  },
-  {
-    id: "5",
-    dataEmissao: "2024-01-12",
-    dataVencimento: "2024-01-27",
-    cliente: "Serviços Gama",
-    descricao: "Licença de software",
-    categoria: "Software",
-    valor: 4800.0,
-    formaRecebimento: "Cartão de Crédito",
-    status: "pago",
-    dataRecebimento: "2024-01-26",
-    observacoes: "",
-  },
-];
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", {
@@ -93,29 +44,167 @@ const formatCurrency = (value: number) =>
   }).format(value);
 
 const formatDate = (dateStr: string) => {
-  const date = new Date(dateStr);
+  const date = new Date(dateStr + 'T00:00:00');
   return date.toLocaleDateString("pt-BR");
 };
 
 export default function ContasReceber() {
-  const [data] = useState<ContaReceber[]>(mockData);
+  const { empresaId } = useAuth();
+  const [data, setData] = useState<ContaReceber[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editData, setEditData] = useState<ContaReceber | null>(null);
+  const [paymentModal, setPaymentModal] = useState<{
+    open: boolean;
+    contaId: string;
+    descricao: string;
+    valor: number;
+  } | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; id: string } | null>(null);
+
+  const fetchData = async () => {
+    if (!empresaId) return;
+
+    setIsLoading(true);
+    const { data: contas, error } = await supabase
+      .from("contas_receber")
+      .select(`
+        *,
+        clientes(nome),
+        categorias(nome),
+        formas_pagamento(nome)
+      `)
+      .order("data_vencimento", { ascending: true });
+
+    if (error) {
+      toast.error("Erro ao carregar dados: " + error.message);
+      setIsLoading(false);
+      return;
+    }
+
+    // Check for overdue status
+    const today = new Date().toISOString().split('T')[0];
+    const processedData = (contas || []).map((conta) => {
+      let status = conta.status;
+      if (status === 'pendente' && conta.data_vencimento < today) {
+        status = 'atrasado';
+      }
+      return {
+        id: conta.id,
+        data_emissao: conta.data_emissao,
+        data_vencimento: conta.data_vencimento,
+        cliente_id: conta.cliente_id,
+        cliente_nome: conta.clientes?.nome || null,
+        descricao: conta.descricao,
+        categoria_id: conta.categoria_id,
+        categoria_nome: conta.categorias?.nome || null,
+        valor: Number(conta.valor),
+        forma_pagamento_id: conta.forma_pagamento_id,
+        forma_pagamento_nome: conta.formas_pagamento?.nome || null,
+        status: status as "pago" | "pendente" | "atrasado",
+        data_recebimento: conta.data_recebimento,
+        observacoes: conta.observacoes,
+      };
+    });
+
+    setData(processedData);
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    if (empresaId) {
+      fetchData();
+    }
+  }, [empresaId]);
+
+  const handleEdit = (item: ContaReceber) => {
+    setEditData(item);
+    setModalOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("contas_receber").delete().eq("id", id);
+    
+    if (error) {
+      toast.error("Erro ao excluir: " + error.message);
+      return;
+    }
+    
+    toast.success("Conta excluída com sucesso!");
+    fetchData();
+    setDeleteDialog(null);
+  };
+
+  const handleInlineUpdate = async (id: string, field: string, value: string) => {
+    const updateData: Record<string, unknown> = {};
+    
+    if (field === 'valor') {
+      updateData[field] = parseFloat(value.replace(',', '.'));
+    } else {
+      updateData[field] = value;
+    }
+
+    const { error } = await supabase
+      .from("contas_receber")
+      .update(updateData)
+      .eq("id", id);
+
+    if (error) {
+      toast.error("Erro ao atualizar: " + error.message);
+      return;
+    }
+
+    toast.success("Atualizado com sucesso!");
+    fetchData();
+  };
 
   const columns: Column<ContaReceber>[] = [
     {
-      key: "dataEmissao",
+      key: "data_emissao",
       header: "Emissão",
       sortable: true,
-      render: (item) => formatDate(item.dataEmissao),
+      render: (item) => (
+        <EditableCell
+          value={item.data_emissao}
+          type="date"
+          onSave={(value) => handleInlineUpdate(item.id, "data_emissao", value)}
+        />
+      ),
     },
     {
-      key: "dataVencimento",
+      key: "data_vencimento",
       header: "Vencimento",
       sortable: true,
-      render: (item) => formatDate(item.dataVencimento),
+      render: (item) => (
+        <EditableCell
+          value={item.data_vencimento}
+          type="date"
+          onSave={(value) => handleInlineUpdate(item.id, "data_vencimento", value)}
+        />
+      ),
     },
-    { key: "cliente", header: "Cliente", sortable: true },
-    { key: "descricao", header: "Descrição" },
-    { key: "categoria", header: "Categoria", sortable: true },
+    {
+      key: "cliente_nome",
+      header: "Cliente",
+      sortable: true,
+      render: (item) => item.cliente_nome || "-",
+    },
+    {
+      key: "descricao",
+      header: "Descrição",
+      render: (item) => (
+        <EditableCell
+          value={item.descricao}
+          onSave={(value) => handleInlineUpdate(item.id, "descricao", value)}
+        />
+      ),
+    },
+    {
+      key: "categoria_nome",
+      header: "Categoria",
+      sortable: true,
+      render: (item) => item.categoria_nome || "-",
+    },
     {
       key: "valor",
       header: "Valor",
@@ -126,17 +215,21 @@ export default function ContasReceber() {
         </span>
       ),
     },
-    { key: "formaRecebimento", header: "Recebimento" },
+    {
+      key: "forma_pagamento_nome",
+      header: "Recebimento",
+      render: (item) => item.forma_pagamento_nome || "-",
+    },
     {
       key: "status",
       header: "Status",
       render: (item) => <StatusBadge status={item.status} />,
     },
     {
-      key: "dataRecebimento",
+      key: "data_recebimento",
       header: "Dt. Recebimento",
       render: (item) =>
-        item.dataRecebimento ? formatDate(item.dataRecebimento) : "-",
+        item.data_recebimento ? formatDate(item.data_recebimento) : "-",
     },
     {
       key: "actions",
@@ -148,6 +241,15 @@ export default function ContasReceber() {
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-primary hover:text-primary"
+              onClick={() =>
+                setPaymentModal({
+                  open: true,
+                  contaId: item.id,
+                  descricao: item.descricao,
+                  valor: item.valor,
+                })
+              }
+              title="Marcar como recebido"
             >
               <CheckCircle className="h-4 w-4" />
             </Button>
@@ -156,6 +258,8 @@ export default function ContasReceber() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => handleEdit(item)}
+            title="Editar"
           >
             <Edit className="h-4 w-4" />
           </Button>
@@ -163,6 +267,8 @@ export default function ContasReceber() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            onClick={() => setDeleteDialog({ open: true, id: item.id })}
+            title="Excluir"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -174,6 +280,14 @@ export default function ContasReceber() {
   const totalAReceber = data
     .filter((item) => item.status !== "pago")
     .reduce((sum, item) => sum + item.valor, 0);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -200,10 +314,62 @@ export default function ContasReceber() {
         data={data}
         columns={columns}
         title="Lançamentos"
-        onAdd={() => console.log("Add new")}
-        onExport={() => console.log("Export")}
+        onAdd={() => {
+          setEditData(null);
+          setModalOpen(true);
+        }}
+        onExport={() => toast.info("Exportação em desenvolvimento")}
         searchPlaceholder="Buscar por cliente, descrição..."
       />
+
+      {/* Modal */}
+      <ContaReceberModal
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setEditData(null);
+        }}
+        onSuccess={fetchData}
+        editData={editData}
+      />
+
+      {/* Confirm Payment Modal */}
+      {paymentModal && (
+        <ConfirmPaymentModal
+          open={paymentModal.open}
+          onClose={() => setPaymentModal(null)}
+          onSuccess={fetchData}
+          type="receber"
+          contaId={paymentModal.contaId}
+          descricao={paymentModal.descricao}
+          valor={paymentModal.valor}
+        />
+      )}
+
+      {/* Delete Confirmation */}
+      <AlertDialog
+        open={deleteDialog?.open}
+        onOpenChange={(open) => !open && setDeleteDialog(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta conta? Esta ação não pode ser
+              desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteDialog && handleDelete(deleteDialog.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
