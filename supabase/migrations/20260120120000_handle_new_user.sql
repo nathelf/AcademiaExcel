@@ -9,15 +9,22 @@ DECLARE
   v_empresa_id UUID;
   v_nome TEXT;
 BEGIN
-  v_empresa_id := NULLIF(NEW.raw_user_meta_data->>'empresa_id', '')::UUID;
-  v_nome := NEW.raw_user_meta_data->>'nome_completo';
+  v_empresa_id := NULL;
+  v_nome := COALESCE(NEW.raw_user_meta_data->>'nome_completo', NEW.email, 'Usuário');
+
+  BEGIN
+    v_empresa_id := NULLIF(NEW.raw_user_meta_data->>'empresa_id', '')::UUID;
+  EXCEPTION
+    WHEN others THEN
+      v_empresa_id := NULL;
+  END;
 
   IF v_empresa_id IS NULL THEN
     RETURN NEW;
   END IF;
 
   INSERT INTO public.profiles (user_id, empresa_id, nome_completo, email)
-  VALUES (NEW.id, v_empresa_id, COALESCE(v_nome, NEW.email, 'Usuário'), NEW.email)
+  VALUES (NEW.id, v_empresa_id, v_nome, NEW.email)
   ON CONFLICT (user_id) DO NOTHING;
 
   IF NOT EXISTS (SELECT 1 FROM public.categorias WHERE empresa_id = v_empresa_id) THEN
