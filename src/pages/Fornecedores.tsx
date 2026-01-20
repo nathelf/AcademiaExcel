@@ -2,6 +2,7 @@ import { useState } from "react";
 import { DataTable, Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, Eye, Mail, Phone } from "lucide-react";
+import { toast } from "sonner";
 
 interface Fornecedor {
   id: string;
@@ -148,12 +149,13 @@ export default function Fornecedores() {
     {
       key: "actions",
       header: "Ações",
-      render: () => (
+      render: (item) => (
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-accent hover:text-accent"
+            onClick={() => toast.info(`Visualizando fornecedor: ${item.nome}`)}
           >
             <Eye className="h-4 w-4" />
           </Button>
@@ -161,6 +163,7 @@ export default function Fornecedores() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            onClick={() => toast.message(`Editar fornecedor: ${item.nome}`)}
           >
             <Edit className="h-4 w-4" />
           </Button>
@@ -168,6 +171,7 @@ export default function Fornecedores() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            onClick={() => toast.message(`Remover fornecedor: ${item.nome}`)}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -209,8 +213,8 @@ export default function Fornecedores() {
         data={data}
         columns={columns}
         title="Cadastro de Fornecedores"
-        onAdd={() => console.log("Add new supplier")}
-        onExport={() => console.log("Export suppliers")}
+        onAdd={() => toast.info("Cadastro de fornecedor em desenvolvimento")}
+        onExport={() => toast.info("Exportação em desenvolvimento")}
         searchPlaceholder="Buscar por nome, CNPJ, email..."
       />
     </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Wallet, Mail, Lock, User, Building2, ArrowRight, Loader2 } from "lucide-react";
+import { Wallet, Mail, Lock, User, Building2, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +32,8 @@ export default function Auth() {
   const { user, signIn, signUp, resetPassword, testEmpresaInsertion } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(false);
   
   // Form states
   const [loginEmail, setLoginEmail] = useState("");
@@ -48,6 +50,22 @@ export default function Auth() {
       navigate("/contas-pagar");
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("login_email");
+    const savedPassword = localStorage.getItem("login_password");
+    const savedRemember = localStorage.getItem("login_remember") === "true";
+
+    if (savedRemember) {
+      setRememberLogin(true);
+      if (savedEmail) {
+        setLoginEmail(savedEmail);
+      }
+      if (savedPassword) {
+        setLoginPassword(savedPassword);
+      }
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +91,16 @@ export default function Auth() {
         toast.error("Erro ao fazer login: " + error.message);
       }
       return;
+    }
+
+    if (rememberLogin) {
+      localStorage.setItem("login_email", loginEmail);
+      localStorage.setItem("login_password", loginPassword);
+      localStorage.setItem("login_remember", "true");
+    } else {
+      localStorage.removeItem("login_email");
+      localStorage.removeItem("login_password");
+      localStorage.removeItem("login_remember");
     }
 
     toast.success("Login realizado com sucesso!");
@@ -224,7 +252,7 @@ export default function Auth() {
             <Wallet className="h-6 w-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">FinanceFlow</h1>
+            <h1 className="text-2xl font-bold text-foreground">Lucra+</h1>
             <p className="text-sm text-muted-foreground">Controle Financeiro</p>
           </div>
         </div>
@@ -261,13 +289,25 @@ export default function Auth() {
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="login-senha"
-                      type="password"
+                      type={showLoginPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="pl-10 bg-background"
+                      className="pl-10 pr-10 bg-background"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowLoginPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={showLoginPassword ? "Ocultar senha" : "Mostrar senha"}
+                    >
+                      {showLoginPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
                   </div>
                 </div>
 
@@ -280,6 +320,16 @@ export default function Auth() {
                     Esqueceu a senha?
                   </button>
                 </div>
+
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={rememberLogin}
+                    onChange={(e) => setRememberLogin(e.target.checked)}
+                  />
+                  Memorizar email e senha
+                </label>
 
                 <Button
                   type="submit"

@@ -2,6 +2,7 @@ import { Check, Zap } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const planos = [
   {
@@ -84,7 +85,11 @@ export default function Plano() {
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => toast.info("Gerenciamento de assinatura em desenvolvimento")}
+          >
             Gerenciar Assinatura
           </Button>
         </div>
@@ -135,6 +140,7 @@ export default function Plano() {
               className="w-full"
               variant={plano.atual ? "outline" : plano.destaque ? "default" : "secondary"}
               disabled={plano.atual}
+              onClick={() => toast.success(`Plano ${plano.nome} selecionado (simulação)`)}
             >
               {plano.atual ? "Plano Atual" : "Escolher Plano"}
             </Button>

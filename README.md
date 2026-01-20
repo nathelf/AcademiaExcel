@@ -1,4 +1,4 @@
-# Welcome to your Lovable project
+# Bem-vindo ao seu projeto Lucra+
 
 ## Project info
 
@@ -8,15 +8,15 @@
 
 There are several ways of editing your application.
 
-**Use Lovable**
+**Use Lucra+**
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+Visite o [Projeto Lucra+](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) e comece a usar.
 
-Changes made via Lovable will be committed automatically to this repo.
+Mudanças feitas via Lucra+ serão commitadas automaticamente neste repositório.
 
 **Use your preferred IDE**
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Se quiser trabalhar localmente usando sua própria IDE, você pode clonar este repositório e enviar mudanças. Mudanças enviadas também serão refletidas no Lucra+.
 
 The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
@@ -62,9 +62,9 @@ This project is built with:
 
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+Basta abrir o [Lucra+](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) e clicar em Share -> Publish.
 
-## Can I connect a custom domain to my Lovable project?
+## Posso conectar um domínio personalizado ao meu projeto Lucra+?
 
 Yes, you can!
 

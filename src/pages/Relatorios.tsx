@@ -1,6 +1,7 @@
 import { Calendar, Download, FileSpreadsheet, FileText, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -128,11 +129,21 @@ export default function Relatorios() {
                   {report.description}
                 </p>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => toast.info(`Exportar ${report.title} em Excel`)}
+                  >
                     <FileSpreadsheet className="h-4 w-4" />
                     Excel
                   </Button>
-                  <Button variant="outline" size="sm" className="gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => toast.info(`Exportar ${report.title} em PDF`)}
+                  >
                     <Download className="h-4 w-4" />
                     PDF
                   </Button>
