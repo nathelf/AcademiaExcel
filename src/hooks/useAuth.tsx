@@ -56,14 +56,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchEmpresaId = async (userId: string) => {
-    const { data } = await apiClient
+    const { data, error } = await apiClient
       .from('profiles')
       .select('empresa_id')
       .eq('user_id', userId)
       .maybeSingle();
-    
+
+    if (error) {
+      console.error(error);
+    }
+
     if (data?.empresa_id) {
       setEmpresaId(data.empresa_id);
+    } else {
+      console.warn('Usuário sem empresa vinculada');
     }
   };
 
