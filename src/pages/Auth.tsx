@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { isSupabaseConfigured } from "@/integrations/supabase/client";
+import { isUsingLocalFixtures } from "@/lib/apiClient";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -124,7 +126,7 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const { error } = await signUp(
+    const { error, requiresEmailConfirmation } = await signUp(
       cadastroEmail, 
       cadastroPassword, 
       cadastroNome, 
@@ -139,6 +141,11 @@ export default function Auth() {
       } else {
         toast.error("Erro ao criar conta: " + error.message);
       }
+      return;
+    }
+
+    if (requiresEmailConfirmation) {
+      toast.message("Conta criada! Confirme seu e-mail para liberar o acesso.");
       return;
     }
 
@@ -169,6 +176,24 @@ export default function Auth() {
     setShowReset(false);
     setResetEmail("");
   };
+
+  if (!isSupabaseConfigured && !isUsingLocalFixtures) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Card className="p-6 bg-card border-border">
+            <h2 className="text-xl font-semibold text-foreground mb-2">
+              Supabase não configurado
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Defina as variáveis <code>VITE_SUPABASE_URL</code> e{" "}
+              <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> no Vercel.
+            </p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (showReset) {
     return (

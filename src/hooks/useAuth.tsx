@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, isUsingLocalFixtures } from '@/lib/apiClient';
+import { isSupabaseConfigured } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -10,7 +11,13 @@ interface AuthContextType {
   loading: boolean;
   empresaId: string | null;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, nomeCompleto: string, nomeEmpresa: string, cnpj?: string) => Promise<{ error: Error | null }>;
+  signUp: (
+    email: string,
+    password: string,
+    nomeCompleto: string,
+    nomeEmpresa: string,
+    cnpj?: string
+  ) => Promise<{ error: Error | null; requiresEmailConfirmation?: boolean }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
   testEmpresaInsertion: () => Promise<{ data: any; error: any }>;
@@ -25,6 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [empresaId, setEmpresaId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isSupabaseConfigured && !isUsingLocalFixtures) {
+      console.error('Supabase não configurado. Defina VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY.');
+      setLoading(false);
+      return;
+    }
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = apiClient.auth.onAuthStateChange(
       (event, session) => {
@@ -75,6 +88,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
+    if (!isSupabaseConfigured && !isUsingLocalFixtures) {
+      return {
+        error: new Error('Supabase não configurado. Defina VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY.'),
+      };
+    }
     const { error } = await apiClient.auth.signInWithPassword({
       email,
       password,
@@ -83,6 +101,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, nomeCompleto: string, nomeEmpresa: string, cnpj?: string) => {
+    if (!isSupabaseConfigured && !isUsingLocalFixtures) {
+      return {
+        error: new Error('Supabase não configurado. Defina VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY.'),
+      };
+    }
     const redirectUrl = `${window.location.origin}/`;
 
     console.log('Iniciando cadastro com dados:', { email, nomeCompleto, nomeEmpresa, cnpj });
@@ -129,6 +152,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: authError as Error };
     }
 
+    if (!authData.session) {
+      return { error: null, requiresEmailConfirmation: true };
+    }
+
     console.log('Cadastro concluído com sucesso!');
     return { error: null };
   };
@@ -150,6 +177,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (!isSupabaseConfigured && !isUsingLocalFixtures) {
+      return;
+    }
     await apiClient.auth.signOut();
     setUser(null);
     setSession(null);
@@ -157,6 +187,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
+    if (!isSupabaseConfigured && !isUsingLocalFixtures) {
+      return {
+        error: new Error('Supabase não configurado. Defina VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY.'),
+      };
+    }
     const { error } = await apiClient.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth?type=recovery`,
     });
