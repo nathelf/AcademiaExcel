@@ -71,3 +71,17 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Modo offline com fixtures locais
+
+- **Ative os mocks**: defina `VITE_USE_LOCAL_FIXTURES=true` no seu `.env` e reinicie o servidor (`npm run dev`). O app continuará usando o Supabase oficial enquanto a flag não estiver ativa.
+- **Como os dados são persistidos**: todos os registros ficam em `localStorage` sob a chave `excel_companion_local_store`. O mock simula o `auth` e as operações `from(...).insert/select/update/delete` que o `useAuth` usa durante o signup.
+- **Resetando o estado local**: para limpar os dados e testar um novo cadastro, execute no console do navegador:
+
+```
+localStorage.removeItem("excel_companion_local_store");
+localStorage.removeItem("supabase.auth.token");
+location.reload();
+```
+
+Essa estratégia vale apenas para desenvolvimento local; em cenários de produção continue conectando ao Supabase real.

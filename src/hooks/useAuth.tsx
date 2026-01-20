@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/apiClient';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -13,6 +13,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, nomeCompleto: string, nomeEmpresa: string, cnpj?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: Error | null }>;
+  testEmpresaInsertion: () => Promise<{ data: any; error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = apiClient.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
@@ -42,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    apiClient.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -55,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchEmpresaId = async (userId: string) => {
-    const { data } = await supabase
+    const { data } = await apiClient
       .from('profiles')
       .select('empresa_id')
       .eq('user_id', userId)
@@ -67,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await apiClient.auth.signInWithPassword({
       email,
       password,
     });
@@ -76,9 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, nomeCompleto: string, nomeEmpresa: string, cnpj?: string) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
+    console.log('Iniciando cadastro com dados:', { email, nomeCompleto, nomeEmpresa, cnpj });
+
     // First create the empresa
-    const { data: empresaData, error: empresaError } = await supabase
+    console.log('Tentando criar empresa...');
+    const { data: empresaData, error: empresaError } = await apiClient
       .from('empresas')
       .insert({
         nome: nomeEmpresa,
@@ -87,12 +91,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select()
       .single();
 
+    console.log('Resultado da criação da empresa:', { empresaData, empresaError });
+
     if (empresaError) {
+      console.error('Erro detalhado ao criar empresa:', empresaError);
       return { error: new Error('Erro ao criar empresa: ' + empresaError.message) };
     }
 
     // Then sign up the user
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    console.log('Empresa criada com sucesso, tentando criar usuário...', { empresaId: empresaData.id });
+    const { data: authData, error: authError } = await apiClient.auth.signUp({
       email,
       password,
       options: {
@@ -104,15 +112,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    console.log('Resultado da criação do usuário:', { authData, authError });
+
     if (authError) {
+      console.error('Erro detalhado ao criar usuário:', authError);
       // Rollback empresa creation
-      await supabase.from('empresas').delete().eq('id', empresaData.id);
+      console.log('Fazendo rollback da empresa criada...');
+      await apiClient.from('empresas').delete().eq('id', empresaData.id);
       return { error: authError as Error };
     }
 
     // Create profile
     if (authData.user) {
-      const { error: profileError } = await supabase
+      console.log('Usuário criado, criando perfil...', { userId: authData.user.id });
+      const { error: profileError } = await apiClient
         .from('profiles')
         .insert({
           user_id: authData.user.id,
@@ -121,12 +134,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: email,
         });
 
+      console.log('Resultado da criação do perfil:', { profileError });
+
       if (profileError) {
+        console.error('Erro detalhado ao criar perfil:', profileError);
         return { error: new Error('Erro ao criar perfil: ' + profileError.message) };
       }
 
+      console.log('Criando dados padrão (categorias, centros de custo, formas de pagamento)...');
+
       // Create default categories
-      await supabase.from('categorias').insert([
+      const { error: categoriasError } = await apiClient.from('categorias').insert([
         { empresa_id: empresaData.id, nome: 'Serviços', tipo: 'ambos' },
         { empresa_id: empresaData.id, nome: 'Produtos', tipo: 'ambos' },
         { empresa_id: empresaData.id, nome: 'Materiais', tipo: 'despesa' },
@@ -138,8 +156,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         { empresa_id: empresaData.id, nome: 'Software', tipo: 'ambos' },
       ]);
 
+      if (categoriasError) {
+        console.error('Erro ao criar categorias:', categoriasError);
+      }
+
       // Create default cost centers
-      await supabase.from('centros_custo').insert([
+      const { error: centrosError } = await apiClient.from('centros_custo').insert([
         { empresa_id: empresaData.id, nome: 'Administrativo' },
         { empresa_id: empresaData.id, nome: 'Operacional' },
         { empresa_id: empresaData.id, nome: 'Comercial' },
@@ -148,8 +170,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         { empresa_id: empresaData.id, nome: 'Produção' },
       ]);
 
+      if (centrosError) {
+        console.error('Erro ao criar centros de custo:', centrosError);
+      }
+
       // Create default payment methods
-      await supabase.from('formas_pagamento').insert([
+      const { error: formasError } = await apiClient.from('formas_pagamento').insert([
         { empresa_id: empresaData.id, nome: 'Boleto' },
         { empresa_id: empresaData.id, nome: 'Transferência' },
         { empresa_id: empresaData.id, nome: 'PIX' },
@@ -158,20 +184,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         { empresa_id: empresaData.id, nome: 'Débito Automático' },
         { empresa_id: empresaData.id, nome: 'Dinheiro' },
       ]);
+
+      if (formasError) {
+        console.error('Erro ao criar formas de pagamento:', formasError);
+      }
+
+      console.log('Cadastro concluído com sucesso!');
     }
 
     return { error: null };
   };
 
+  // Debug function to test empresa insertion
+  const testEmpresaInsertion = async () => {
+    console.log('Testando inserção direta na tabela empresas...');
+    const { data, error } = await apiClient
+      .from('empresas')
+      .insert({
+        nome: 'Empresa Teste Debug',
+        cnpj: '00.000.000/0000-99',
+      })
+      .select()
+      .single();
+
+    console.log('Resultado do teste:', { data, error });
+    return { data, error };
+  };
+
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await apiClient.auth.signOut();
     setUser(null);
     setSession(null);
     setEmpresaId(null);
   };
 
   const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await apiClient.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth?type=recovery`,
     });
     return { error: error as Error | null };
@@ -187,6 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signOut,
       resetPassword,
+      testEmpresaInsertion,
     }}>
       {children}
     </AuthContext.Provider>

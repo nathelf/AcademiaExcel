@@ -29,7 +29,7 @@ const resetSchema = z.object({
 
 export default function Auth() {
   const navigate = useNavigate();
-  const { user, signIn, signUp, resetPassword } = useAuth();
+  const { user, signIn, signUp, resetPassword, testEmpresaInsertion } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
   
@@ -297,6 +297,24 @@ export default function Auth() {
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={async () => {
+                    console.log('Testando inserção de empresa...');
+                    const result = await testEmpresaInsertion();
+                    console.log('Resultado do teste:', result);
+                    if (result.error) {
+                      toast.error('Erro no teste: ' + result.error.message);
+                    } else {
+                      toast.success('Teste bem-sucedido! Empresa criada: ' + result.data.nome);
+                    }
+                  }}
+                >
+                  🧪 Testar Inserção Empresa
                 </Button>
               </form>
             </TabsContent>
