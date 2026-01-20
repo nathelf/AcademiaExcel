@@ -47,7 +47,7 @@ export default function Auth() {
 
   useEffect(() => {
     if (user) {
-      navigate("/contas-pagar");
+      navigate("/dashboard");
     }
   }, [user, navigate]);
 
@@ -104,7 +104,7 @@ export default function Auth() {
     }
 
     toast.success("Login realizado com sucesso!");
-    navigate("/contas-pagar");
+    navigate("/dashboard");
   };
 
   const handleCadastro = async (e: React.FormEvent) => {
@@ -143,7 +143,7 @@ export default function Auth() {
     }
 
     toast.success("Conta criada com sucesso! Bem-vindo ao FinanceFlow!");
-    navigate("/contas-pagar");
+    navigate("/dashboard");
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {

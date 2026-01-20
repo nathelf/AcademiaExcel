@@ -60,14 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from('profiles')
       .select('empresa_id')
       .eq('user_id', userId)
-      .maybeSingle();
+      .limit(1);
 
     if (error) {
       console.error(error);
     }
 
-    if (data?.empresa_id) {
-      setEmpresaId(data.empresa_id);
+    const empresaId = data?.[0]?.empresa_id;
+    if (empresaId) {
+      setEmpresaId(empresaId);
     } else {
       console.warn('Usuário sem empresa vinculada');
     }
@@ -128,76 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: authError as Error };
     }
 
-    // Create profile
-    if (authData.user) {
-      console.log('Usuário criado, criando perfil...', { userId: authData.user.id });
-      const { error: profileError } = await apiClient
-        .from('profiles')
-        .insert({
-          user_id: authData.user.id,
-          empresa_id: empresaData.id,
-          nome_completo: nomeCompleto,
-          email: email,
-        });
-
-      console.log('Resultado da criação do perfil:', { profileError });
-
-      if (profileError) {
-        console.error('Erro detalhado ao criar perfil:', profileError);
-        return { error: new Error('Erro ao criar perfil: ' + profileError.message) };
-      }
-
-      console.log('Criando dados padrão (categorias, centros de custo, formas de pagamento)...');
-
-      // Create default categories
-      const { error: categoriasError } = await apiClient.from('categorias').insert([
-        { empresa_id: empresaData.id, nome: 'Serviços', tipo: 'ambos' },
-        { empresa_id: empresaData.id, nome: 'Produtos', tipo: 'ambos' },
-        { empresa_id: empresaData.id, nome: 'Materiais', tipo: 'despesa' },
-        { empresa_id: empresaData.id, nome: 'Utilidades', tipo: 'despesa' },
-        { empresa_id: empresaData.id, nome: 'Transporte', tipo: 'despesa' },
-        { empresa_id: empresaData.id, nome: 'Tecnologia', tipo: 'ambos' },
-        { empresa_id: empresaData.id, nome: 'Manutenção', tipo: 'despesa' },
-        { empresa_id: empresaData.id, nome: 'Projetos', tipo: 'receita' },
-        { empresa_id: empresaData.id, nome: 'Software', tipo: 'ambos' },
-      ]);
-
-      if (categoriasError) {
-        console.error('Erro ao criar categorias:', categoriasError);
-      }
-
-      // Create default cost centers
-      const { error: centrosError } = await apiClient.from('centros_custo').insert([
-        { empresa_id: empresaData.id, nome: 'Administrativo' },
-        { empresa_id: empresaData.id, nome: 'Operacional' },
-        { empresa_id: empresaData.id, nome: 'Comercial' },
-        { empresa_id: empresaData.id, nome: 'TI' },
-        { empresa_id: empresaData.id, nome: 'Logística' },
-        { empresa_id: empresaData.id, nome: 'Produção' },
-      ]);
-
-      if (centrosError) {
-        console.error('Erro ao criar centros de custo:', centrosError);
-      }
-
-      // Create default payment methods
-      const { error: formasError } = await apiClient.from('formas_pagamento').insert([
-        { empresa_id: empresaData.id, nome: 'Boleto' },
-        { empresa_id: empresaData.id, nome: 'Transferência' },
-        { empresa_id: empresaData.id, nome: 'PIX' },
-        { empresa_id: empresaData.id, nome: 'Cartão de Crédito' },
-        { empresa_id: empresaData.id, nome: 'Cartão de Débito' },
-        { empresa_id: empresaData.id, nome: 'Débito Automático' },
-        { empresa_id: empresaData.id, nome: 'Dinheiro' },
-      ]);
-
-      if (formasError) {
-        console.error('Erro ao criar formas de pagamento:', formasError);
-      }
-
-      console.log('Cadastro concluído com sucesso!');
-    }
-
+    console.log('Cadastro concluído com sucesso!');
     return { error: null };
   };
 
