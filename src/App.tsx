@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { AuthProvider } from "@/hooks/useAuth";
@@ -11,7 +12,7 @@ import ContasPagar from "./pages/ContasPagar";
 import ContasReceber from "./pages/ContasReceber";
 import Clientes from "./pages/Clientes";
 import Fornecedores from "./pages/Fornecedores";
-import Relatorios from "./pages/Relatorios";
+const Relatorios = lazy(() => import("./pages/Relatorios"));
 import Configuracoes from "./pages/Configuracoes";
 import Plano from "./pages/Plano";
 import Auth from "./pages/Auth";
@@ -88,7 +89,15 @@ const App = () => (
               path="/relatorios"
               element={
                 <ProtectedLayoutWrapper>
-                  <Relatorios />
+                  <Suspense
+                    fallback={
+                      <div className="flex items-center justify-center h-64">
+                        <div className="text-muted-foreground">Carregando...</div>
+                      </div>
+                    }
+                  >
+                    <Relatorios />
+                  </Suspense>
                 </ProtectedLayoutWrapper>
               }
             />
