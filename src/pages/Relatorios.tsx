@@ -7,6 +7,7 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
+import * as XLSX from "xlsx";
 import { DfcFilters } from "@/components/dfc/DfcFilters";
 import { DfcCharts } from "@/components/dfc/DfcCharts";
 import { DfcLegend } from "@/components/dfc/DfcLegend";
@@ -257,13 +258,11 @@ export default function Relatorios() {
         ?.valoresPorMes[mes]?.valor ?? 0,
   }));
 
-  const handleExportXlsx = async () => {
+  const handleExportXlsx = () => {
     if (rows.length === 0) {
       toast.message("Nenhum dado para exportar.");
       return;
     }
-
-    const XLSX = await import("xlsx");
 
     const dfcSheetData = [
       [
