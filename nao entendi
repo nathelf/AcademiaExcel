@@ -1,0 +1,30 @@
+[33md3c36a4[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Revert "erro de telas de pagamentos"
+[33m46e3c3c[m Revert "erro de telas de pagamentos"
+[33mda5992d[m erro de telas de pagamentos
+[33med0423a[m erro de telas de pagamentos
+[33m27a454b[m erro de telas de pagamentos
+[33m00de95f[m Alterar e incluir toda a logica de bd de relatorios
+[33m71bd9de[m Alterar subcategorias de cadastros
+[33mc02c39d[m Alterar modo escuro e claro, padrao claro
+[33m9dba85b[m Configura layout
+[33m35878fd[m Configura cadastro de empresa
+[33m8776517[m Configura acessos
+[33m2d06c18[m Configura acessos
+[33m182b373[m alteracao de autenticacao
+[33m36e45e0[m Configura rewrite para SPA no Vercel
+[33m13c078a[m Resolve conflito do README ao unificar histórico
+[33m95c5d53[m[33m ([m[1;32mnova_branch[m[33m)[m Ajustes finais antes de merge na main
+[33mae59cb7[m[33m ([m[1;31morigin/nova_branch[m[33m)[m Commit inicial do site Academia Excel
+[33mbd37a82[m Initial commit
+[33m1252c3f[m Lovable update
+[33mc885394[m Changes
+[33md68fd68[m Lovable update
+[33m629ed04[m Changes
+[33m3650ebd[m Integrate Auth & DB scaffold
+[33m7517533[m Changes
+[33md43787f[m Lovable update
+[33mf7d3541[m Changes
+[33mce80928[m Visual edit in Lovable
+[33m66ba675[m Implement Excel-like dark UI
+[33m763a382[m Changes
+[33mb331aa1[m template: new_style_vite_react_shadcn_ts_testing_2026-01-08
