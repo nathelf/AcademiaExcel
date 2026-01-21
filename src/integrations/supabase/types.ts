@@ -506,19 +506,7 @@ export type Database = {
       }
     }
     Views: {
-      dfc_mensal_av: {
-        Row: {
-          empresa_id: string
-          mes: string
-          codigo: string
-          nome: string
-          tipo_linha_dfc: "normal" | "subtotal" | "total"
-          valor: number
-          av_percent: number | null
-          ah_percent: number | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       get_user_empresa_id: { Args: never; Returns: string }
