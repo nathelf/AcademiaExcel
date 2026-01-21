@@ -62,7 +62,7 @@ const formatDate = (dateStr: string) => {
 };
 
 export default function ContasPagar() {
-  const { empresaId } = useAuth();
+  const { empresaId, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState<ContaPagar[]>([]);
   const [subcategorias, setSubcategorias] = useState<
@@ -156,6 +156,12 @@ export default function ContasPagar() {
       fetchData();
     }
   }, [empresaId]);
+
+  useEffect(() => {
+    if (!authLoading && !empresaId) {
+      setIsLoading(false);
+    }
+  }, [authLoading, empresaId]);
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams);
@@ -379,10 +385,20 @@ export default function ContasPagar() {
     .filter((item) => item.status !== "pago")
     .reduce((sum, item) => sum + item.valor, 0);
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!empresaId) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center text-muted-foreground">
+          Empresa não identificada. Verifique o cadastro do usuário.
+        </div>
       </div>
     );
   }
