@@ -13,9 +13,12 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 const menuItems = [{
   icon: LayoutDashboard,
   label: "Dashboard",
@@ -65,6 +68,8 @@ export function Sidebar({
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === "dark";
 
   const handleSignOut = async () => {
     await signOut();
@@ -147,6 +152,19 @@ export function Sidebar({
               <p className="text-xs text-muted-foreground truncate">Empresa Demo</p>
             </div>
           </div>
+          <button
+            className={cn(
+              "nav-item w-full text-muted-foreground hover:text-foreground",
+              isCollapsed ? "md:justify-center md:px-2 md:gap-0" : ""
+            )}
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            type="button"
+          >
+            {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            <span className={cn(isCollapsed ? "md:hidden" : "md:inline")}>
+              {isDark ? "Modo claro" : "Modo escuro"}
+            </span>
+          </button>
           <button
             className={cn(
               "nav-item w-full text-muted-foreground hover:text-destructive",

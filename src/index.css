@@ -6,6 +6,70 @@
 
 @layer base {
   :root {
+    /* Light Financial Theme (default) */
+    --background: 0 0% 100%;
+    --foreground: 222.2 47.4% 11.2%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47.4% 11.2%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+
+    /* Financial Green - Primary */
+    --primary: 150 60% 35%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Slate Blue - Secondary */
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    /* Accent Blue */
+    --accent: 210 80% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 210 20% 98%;
+
+    /* Warning/Amber */
+    --warning: 40 90% 50%;
+    --warning-foreground: 222.2 47.4% 11.2%;
+
+    /* Success Green */
+    --success: 150 70% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 150 60% 35%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222.2 47.4% 11.2%;
+    --sidebar-primary: 150 60% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 96.1%;
+    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 150 60% 35%;
+
+    /* Custom Financial Variables */
+    --chart-positive: 150 70% 40%;
+    --chart-negative: 0 70% 55%;
+    --chart-neutral: 210 80% 45%;
+    --table-row-hover: 210 40% 96.1%;
+    --table-header: 210 40% 98%;
+    --status-paid: 150 70% 40%;
+    --status-pending: 40 90% 50%;
+    --status-overdue: 0 70% 55%;
+  }
+
+  .dark {
     /* Dark Financial Theme */
     --background: 220 20% 6%;
     --foreground: 210 20% 95%;
@@ -46,8 +110,6 @@
     --input: 220 15% 15%;
     --ring: 150 60% 45%;
 
-    --radius: 0.5rem;
-
     /* Sidebar */
     --sidebar-background: 220 20% 8%;
     --sidebar-foreground: 210 15% 70%;
@@ -67,10 +129,6 @@
     --status-paid: 150 70% 50%;
     --status-pending: 40 90% 50%;
     --status-overdue: 0 70% 55%;
-  }
-
-  .dark {
-    /* Already dark by default */
   }
 }
 
