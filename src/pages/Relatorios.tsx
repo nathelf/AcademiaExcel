@@ -1,391 +1,478 @@
-import { Calendar, Download, FileSpreadsheet, FileText, Filter, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Download, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
+import * as XLSX from "xlsx";
+import { DfcFilters } from "@/components/dfc/DfcFilters";
+import { DfcCharts } from "@/components/dfc/DfcCharts";
+import { DfcLegend } from "@/components/dfc/DfcLegend";
+import { DfcRow, DfcTable } from "@/components/dfc/DfcTable";
 
-const reports = [
-  {
-    id: "financial",
-    title: "Relatório Financeiro Geral",
-    description: "Visão consolidada de contas a pagar e receber",
-    icon: FileText,
-  },
-  {
-    id: "cashflow",
-    title: "Fluxo de Caixa",
-    description: "Entradas e saídas por período",
-    icon: FileSpreadsheet,
-  },
-  {
-    id: "clients",
-    title: "Relatório de Clientes",
-    description: "Faturamento e inadimplência por cliente",
-    icon: FileText,
-  },
-  {
-    id: "suppliers",
-    title: "Relatório de Fornecedores",
-    description: "Gastos e pagamentos por fornecedor",
-    icon: FileSpreadsheet,
-  },
-];
+type DfcRowRaw = {
+  empresa_id: string;
+  mes: string;
+  codigo: string;
+  nome: string;
+  tipo_linha_dfc: "normal" | "subtotal" | "total";
+  valor: number;
+  av_percent: number | null;
+  ah_percent: number | null;
+};
+
+function DfcTableSkeleton() {
+  return (
+    <div className="bg-card border border-border rounded-lg p-6 space-y-3">
+      {[...Array(6)].map((_, index) => (
+        <div
+          key={`dfc-row-skeleton-${index}`}
+          className="h-6 w-full animate-pulse rounded bg-muted/50"
+        />
+      ))}
+    </div>
+  );
+}
+
+function DfcChartsSkeleton() {
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {[...Array(2)].map((_, index) => (
+        <div
+          key={`dfc-chart-skeleton-${index}`}
+          className="kpi-card h-80 animate-pulse bg-muted/40"
+        />
+      ))}
+    </div>
+  );
+}
+
+const buildMonthRange = (ano: string, mesInicial: string, mesFinal: string) => {
+  const start = Number(mesInicial);
+  const end = Number(mesFinal);
+  const startMonth = Math.min(start, end);
+  const endMonth = Math.max(start, end);
+  const meses: string[] = [];
+  for (let month = startMonth; month <= endMonth; month += 1) {
+    const mm = String(month).padStart(2, "0");
+    meses.push(`${ano}-${mm}-01`);
+  }
+  return meses;
+};
 
 export default function Relatorios() {
   const { empresaId } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [subcategorias, setSubcategorias] = useState<{ id: string; nome: string }[]>([]);
-  const [periodoFiltro, setPeriodoFiltro] = useState(
-    searchParams.get("periodo") ?? "mes"
+
+  const [empresaFiltro, setEmpresaFiltro] = useState(
+    searchParams.get("empresa") ?? empresaId ?? ""
   );
-  const [statusFiltro, setStatusFiltro] = useState(
-    searchParams.get("status") ?? "all"
+  const [anoFiltro, setAnoFiltro] = useState(
+    searchParams.get("ano") ?? String(new Date().getFullYear())
   );
-  const [clienteFiltro, setClienteFiltro] = useState(
-    searchParams.get("cliente") ?? "all"
+  const [mesInicial, setMesInicial] = useState(
+    searchParams.get("mes_inicio") ?? "01"
   );
-  const [fornecedorFiltro, setFornecedorFiltro] = useState(
-    searchParams.get("fornecedor") ?? "all"
+  const [mesFinal, setMesFinal] = useState(
+    searchParams.get("mes_fim") ?? "12"
   );
-  const [subcategoriaFiltro, setSubcategoriaFiltro] = useState(
-    searchParams.get("subcategoria") ?? "all"
+  const [linhaSelecionada, setLinhaSelecionada] = useState("");
+  const [receitaCodigo, setReceitaCodigo] = useState(
+    searchParams.get("receita") ??
+      (typeof window !== "undefined"
+        ? window.localStorage.getItem("dfc_receita_codigo") ?? ""
+        : "")
   );
-  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
-  const [summary, setSummary] = useState({
-    receitas: 0,
-    despesas: 0,
-    saldo: 0,
-    transacoes: 0,
-  });
-  const subcategoriaSelecionada =
-    subcategoriaFiltro !== "all"
-      ? subcategorias.find((sub) => sub.id === subcategoriaFiltro)?.nome
-      : null;
+  const [despesaCodigo, setDespesaCodigo] = useState(
+    searchParams.get("despesa") ??
+      (typeof window !== "undefined"
+        ? window.localStorage.getItem("dfc_despesa_codigo") ?? ""
+        : "")
+  );
 
   useEffect(() => {
-    const fetchSubcategorias = async () => {
-      if (!empresaId) return;
-      const { data, error } = await supabase
-        .from("subcategorias")
-        .select("id, nome")
-        .eq("empresa_id", empresaId)
-        .order("nome");
+    if (!empresaFiltro && empresaId) {
+      setEmpresaFiltro(empresaId);
+    }
+  }, [empresaId, empresaFiltro]);
 
-      if (error) {
-        toast.error("Erro ao carregar subcategorias: " + error.message);
-        return;
-      }
-
-      setSubcategorias(data ?? []);
-    };
-
-    fetchSubcategorias();
-  }, [empresaId]);
+  useEffect(() => {
+    if (Number(mesFinal) < Number(mesInicial)) {
+      toast.message("Mês final ajustado para o mês inicial.");
+      setMesFinal(mesInicial);
+    }
+  }, [mesInicial, mesFinal]);
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams);
 
-    if (periodoFiltro === "mes") {
-      params.delete("periodo");
+    if (empresaFiltro) {
+      params.set("empresa", empresaFiltro);
     } else {
-      params.set("periodo", periodoFiltro);
+      params.delete("empresa");
     }
 
-    if (statusFiltro === "all") {
-      params.delete("status");
+    params.set("ano", anoFiltro);
+    params.set("mes_inicio", mesInicial);
+    params.set("mes_fim", mesFinal);
+    if (linhaSelecionada) {
+      params.set("linha", linhaSelecionada);
     } else {
-      params.set("status", statusFiltro);
+      params.delete("linha");
     }
-
-    if (clienteFiltro === "all") {
-      params.delete("cliente");
+    if (receitaCodigo) {
+      params.set("receita", receitaCodigo);
     } else {
-      params.set("cliente", clienteFiltro);
+      params.delete("receita");
     }
-
-    if (fornecedorFiltro === "all") {
-      params.delete("fornecedor");
+    if (despesaCodigo) {
+      params.set("despesa", despesaCodigo);
     } else {
-      params.set("fornecedor", fornecedorFiltro);
-    }
-
-    if (subcategoriaFiltro === "all") {
-      params.delete("subcategoria");
-    } else {
-      params.set("subcategoria", subcategoriaFiltro);
+      params.delete("despesa");
     }
 
     setSearchParams(params, { replace: true });
   }, [
-    periodoFiltro,
-    statusFiltro,
-    clienteFiltro,
-    fornecedorFiltro,
-    subcategoriaFiltro,
+    empresaFiltro,
+    anoFiltro,
+    mesInicial,
+    mesFinal,
+    linhaSelecionada,
+    receitaCodigo,
+    despesaCodigo,
     searchParams,
     setSearchParams,
   ]);
 
+  const meses = useMemo(
+    () => buildMonthRange(anoFiltro, mesInicial, mesFinal),
+    [anoFiltro, mesInicial, mesFinal]
+  );
+
+  const dfcQuery = useQuery({
+    queryKey: ["dfc_mensal_av", empresaFiltro, anoFiltro, mesInicial, mesFinal],
+    enabled: Boolean(empresaFiltro),
+    staleTime: 60 * 1000,
+    placeholderData: (previous) => previous,
+    queryFn: async () => {
+      const start = meses[0];
+      const end = meses[meses.length - 1];
+
+      const { data, error } = await supabase
+        .from("dfc_mensal_av")
+        .select("*")
+        .eq("empresa_id", empresaFiltro)
+        .gte("mes", start)
+        .lte("mes", end)
+        .order("codigo", { ascending: true })
+        .order("mes", { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      return (data as DfcRowRaw[]) ?? [];
+    },
+  });
+
   useEffect(() => {
-    const fetchSummary = async () => {
-      if (!empresaId) return;
-      setIsLoadingSummary(true);
+    if (dfcQuery.error) {
+      toast.error("Erro ao carregar DFC: " + dfcQuery.error.message);
+    }
+  }, [dfcQuery.error]);
+  const rows = dfcQuery.data ?? [];
 
-      const subcategoriaFilter =
-        subcategoriaFiltro !== "all" ? subcategoriaFiltro : null;
-
-      let contasReceberQuery = supabase
-        .from("contas_receber")
-        .select("id, valor");
-      let contasPagarQuery = supabase
-        .from("contas_pagar")
-        .select("id, valor");
-
-      if (subcategoriaFilter) {
-        contasReceberQuery = contasReceberQuery.eq("subcategoria_id", subcategoriaFilter);
-        contasPagarQuery = contasPagarQuery.eq("subcategoria_id", subcategoriaFilter);
+  const dfcRows = useMemo(() => {
+    const grouped = new Map<string, DfcRow>();
+    rows.forEach((row) => {
+      const key = row.codigo;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          codigo: row.codigo,
+          nome: row.nome,
+          tipo: row.tipo_linha_dfc,
+          valoresPorMes: {},
+        });
       }
+      grouped.get(key)!.valoresPorMes[row.mes] = {
+        valor: row.valor,
+        avPercent: row.av_percent,
+        ahPercent: row.ah_percent,
+      };
+    });
+    return Array.from(grouped.values());
+  }, [rows]);
 
-      const [receberRes, pagarRes] = await Promise.all([
-        contasReceberQuery,
-        contasPagarQuery,
-      ]);
+  useEffect(() => {
+    if (!linhaSelecionada && dfcRows.length > 0) {
+      setLinhaSelecionada(searchParams.get("linha") ?? dfcRows[0].codigo);
+    }
+  }, [dfcRows, linhaSelecionada]);
 
-      if (receberRes.error) {
-        toast.error("Erro ao carregar receitas: " + receberRes.error.message);
-        setIsLoadingSummary(false);
-        return;
-      }
+  useEffect(() => {
+    if (!receitaCodigo && dfcRows.length > 0) {
+      const found =
+        dfcRows.find((linha) => linha.nome.toLowerCase().includes("receita")) ??
+        dfcRows[0];
+      setReceitaCodigo(found?.codigo ?? "");
+    }
+  }, [dfcRows, receitaCodigo]);
 
-      if (pagarRes.error) {
-        toast.error("Erro ao carregar despesas: " + pagarRes.error.message);
-        setIsLoadingSummary(false);
-        return;
-      }
+  useEffect(() => {
+    if (!despesaCodigo && dfcRows.length > 1) {
+      const found =
+        dfcRows.find((linha) => linha.nome.toLowerCase().includes("despesa")) ??
+        dfcRows[1];
+      setDespesaCodigo(found?.codigo ?? "");
+    }
+  }, [dfcRows, despesaCodigo]);
 
-      const receitas = (receberRes.data ?? []).reduce(
-        (sum, item) => sum + Number(item.valor),
-        0
-      );
-      const despesas = (pagarRes.data ?? []).reduce(
-        (sum, item) => sum + Number(item.valor),
-        0
-      );
-      const transacoes =
-        (receberRes.data?.length ?? 0) + (pagarRes.data?.length ?? 0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (receitaCodigo) {
+      window.localStorage.setItem("dfc_receita_codigo", receitaCodigo);
+    }
+    if (despesaCodigo) {
+      window.localStorage.setItem("dfc_despesa_codigo", despesaCodigo);
+    }
+  }, [receitaCodigo, despesaCodigo]);
 
-      setSummary({
-        receitas,
-        despesas,
-        saldo: receitas - despesas,
-        transacoes,
-      });
-      setIsLoadingSummary(false);
-    };
+  const receitaDespesaSeries = meses.map((mes) => ({
+    mes,
+    receitas: dfcRows
+      .find((linha) => linha.codigo === receitaCodigo)
+      ?.valoresPorMes[mes]?.valor ?? 0,
+    despesas: dfcRows
+      .find((linha) => linha.codigo === despesaCodigo)
+      ?.valoresPorMes[mes]?.valor ?? 0,
+  }));
 
-    fetchSummary();
-  }, [empresaId, subcategoriaFiltro]);
+  const evolucaoSeries = meses.map((mes) => ({
+    mes,
+    valor:
+      dfcRows
+        .find((linha) => linha.codigo === linhaSelecionada)
+        ?.valoresPorMes[mes]?.valor ?? 0,
+  }));
+
+  const handleExportXlsx = () => {
+    if (rows.length === 0) {
+      toast.message("Nenhum dado para exportar.");
+      return;
+    }
+
+    const dfcSheetData = [
+      [
+        "empresa_id",
+        "mes",
+        "codigo",
+        "nome",
+        "tipo_linha_dfc",
+        "valor",
+        "av_percent",
+        "ah_percent",
+      ],
+      ...rows.map((row) => [
+        row.empresa_id,
+        row.mes,
+        row.codigo,
+        row.nome,
+        row.tipo_linha_dfc,
+        row.valor,
+        row.av_percent ?? "",
+        row.ah_percent ?? "",
+      ]),
+    ];
+
+    const filtrosSheetData = [
+      ["Filtro", "Valor"],
+      ["empresa_id", empresaFiltro],
+      ["ano", anoFiltro],
+      ["mes_inicio", mesInicial],
+      ["mes_fim", mesFinal],
+      ["linha", linhaSelecionada],
+      ["receita_codigo", receitaCodigo],
+      ["despesa_codigo", despesaCodigo],
+    ];
+
+    const chartReceitaDespesa = [
+      ["mes", "receitas", "despesas"],
+      ...receitaDespesaSeries.map((item) => [item.mes, item.receitas, item.despesas]),
+    ];
+
+    const chartEvolucao = [
+      ["mes", "valor"],
+      ...evolucaoSeries.map((item) => [item.mes, item.valor]),
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet(dfcSheetData),
+      "DFC"
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet(chartReceitaDespesa),
+      "Chart_Receita_Despesa"
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet(chartEvolucao),
+      "Chart_Evolucao"
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet(filtrosSheetData),
+      "Filtros"
+    );
+
+    XLSX.writeFile(
+      workbook,
+      `dfc_${empresaFiltro}_${anoFiltro}_${mesInicial}-${mesFinal}.xlsx`
+    );
+  };
+
+  const handleExportPdf = () => {
+    if (rows.length === 0) {
+      toast.message("Nenhum dado para exportar.");
+      return;
+    }
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Não foi possível abrir a janela de impressão.");
+      return;
+    }
+
+    const header = `
+      <tr>
+        <th>Linha</th>
+        ${meses.map((mes) => `<th>${mes}</th>`).join("")}
+        <th>AV%</th>
+        <th>AH%</th>
+      </tr>
+    `;
+
+    const rowsHtml = dfcRows
+      .map((linha) => {
+        const nivel = linha.codigo.split(".").length - 1;
+        const classe = linha.tipo !== "normal" ? "highlight" : "";
+        const mesRef = meses[meses.length - 1];
+        const ref = mesRef ? linha.valoresPorMes[mesRef] : null;
+        return `
+          <tr class="${classe}">
+            <td style="padding-left:${nivel * 12}px">${linha.nome}</td>
+            ${meses
+              .map((mes) => {
+                const cell = linha.valoresPorMes[mes];
+                const valor = cell?.valor ?? 0;
+                const negative = valor < 0 ? "negative" : "";
+                return `<td class="${negative}">${
+                  cell ? valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-"
+                }</td>`;
+              })
+              .join("")}
+            <td>${ref ? ref.avPercent?.toFixed(2) ?? "-" : "-"}</td>
+            <td>${ref ? ref.ahPercent?.toFixed(2) ?? "-" : "-"}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>DFC</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 16px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #ddd; padding: 6px; text-align: right; }
+            th:first-child, td:first-child { text-align: left; }
+            .highlight { background: #f2f2f2; font-weight: 700; }
+            .negative { color: #d32f2f; }
+          </style>
+        </head>
+        <body>
+          <h2>DFC - ${anoFiltro} (${mesInicial} a ${mesFinal})</h2>
+          <table>
+            <thead>${header}</thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Relatórios</h1>
+          <h1 className="text-2xl font-semibold text-foreground">
+            Demonstrativo de Fluxo de Caixa (DFC)
+          </h1>
           <p className="text-muted-foreground">
-            Gere relatórios financeiros detalhados
+            Tabela mensal com análise vertical (AV) e horizontal (AH)
           </p>
         </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleExportXlsx}>
+            <FileSpreadsheet className="h-4 w-4" />
+            Excel (XLSX)
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleExportPdf}>
+            <Download className="h-4 w-4" />
+            PDF
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
       <Card className="p-4 bg-card border-border">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <Select value={periodoFiltro} onValueChange={setPeriodoFiltro}>
-              <SelectTrigger className="w-40 bg-background">
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="semana">Esta Semana</SelectItem>
-                <SelectItem value="mes">Este Mês</SelectItem>
-                <SelectItem value="trimestre">Este Trimestre</SelectItem>
-                <SelectItem value="ano">Este Ano</SelectItem>
-                <SelectItem value="custom">Personalizado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select value={statusFiltro} onValueChange={setStatusFiltro}>
-              <SelectTrigger className="w-40 bg-background">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="pago">Pagos</SelectItem>
-                <SelectItem value="pendente">Pendentes</SelectItem>
-                <SelectItem value="atrasado">Atrasados</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Select value={clienteFiltro} onValueChange={setClienteFiltro}>
-            <SelectTrigger className="w-48 bg-background">
-              <SelectValue placeholder="Cliente" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Clientes</SelectItem>
-              <SelectItem value="1">Empresa ABC Ltda</SelectItem>
-              <SelectItem value="2">Tech Solutions</SelectItem>
-              <SelectItem value="3">Comércio Delta</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={fornecedorFiltro} onValueChange={setFornecedorFiltro}>
-            <SelectTrigger className="w-48 bg-background">
-              <SelectValue placeholder="Fornecedor" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Fornecedores</SelectItem>
-              <SelectItem value="1">Distribuidor XYZ</SelectItem>
-              <SelectItem value="2">Materiais Prime</SelectItem>
-              <SelectItem value="3">Logística Express</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <div className="flex items-center gap-2">
-            <Tags className="h-4 w-4 text-muted-foreground" />
-            <Select value={subcategoriaFiltro} onValueChange={setSubcategoriaFiltro}>
-              <SelectTrigger className="w-56 bg-background">
-                <SelectValue placeholder="Subcategoria" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as Subcategorias</SelectItem>
-                {subcategorias.map((sub) => (
-                  <SelectItem key={sub.id} value={sub.id}>
-                    {sub.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        <DfcFilters
+          empresaId={empresaFiltro}
+          ano={anoFiltro}
+          mesInicial={mesInicial}
+          mesFinal={mesFinal}
+          onEmpresaChange={setEmpresaFiltro}
+          onAnoChange={setAnoFiltro}
+          onMesInicialChange={setMesInicial}
+          onMesFinalChange={setMesFinal}
+        />
       </Card>
 
-      {/* Report Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {reports.map((report) => (
-          <Card
-            key={report.id}
-            className="p-6 bg-card border-border hover:border-primary/30 transition-colors cursor-pointer group"
-          >
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                <report.icon className="h-6 w-6" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground mb-1">
-                  {report.title}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {report.description}
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() =>
-                      toast.info(
-                        `Exportar ${report.title} em Excel${
-                          subcategoriaSelecionada
-                            ? ` (Subcategoria: ${subcategoriaSelecionada})`
-                            : ""
-                        }`
-                      )
-                    }
-                  >
-                    <FileSpreadsheet className="h-4 w-4" />
-                    Excel
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() =>
-                      toast.info(
-                        `Exportar ${report.title} em PDF${
-                          subcategoriaSelecionada
-                            ? ` (Subcategoria: ${subcategoriaSelecionada})`
-                            : ""
-                        }`
-                      )
-                    }
-                  >
-                    <Download className="h-4 w-4" />
-                    PDF
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+      {dfcQuery.isLoading ? (
+        <DfcTableSkeleton />
+      ) : (
+        <>
+          <DfcLegend />
+          <DfcTable
+            meses={meses}
+            linhas={dfcRows}
+            mesReferencia={meses[meses.length - 1] ?? null}
+          />
+        </>
+      )}
 
-      {/* Summary Preview */}
-      <Card className="p-6 bg-card border-border">
-        <h3 className="font-semibold text-foreground mb-4">
-          Prévia do Período Selecionado
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div>
-            <p className="text-sm text-muted-foreground">Receitas</p>
-            <p className="text-2xl font-semibold text-primary">
-              {isLoadingSummary ? "..." : summary.receitas.toLocaleString("pt-BR", {
-                style: "currency",
-                currency: "BRL",
-              })}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Despesas</p>
-            <p className="text-2xl font-semibold text-destructive">
-              {isLoadingSummary ? "..." : summary.despesas.toLocaleString("pt-BR", {
-                style: "currency",
-                currency: "BRL",
-              })}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Saldo</p>
-            <p className="text-2xl font-semibold text-foreground">
-              {isLoadingSummary ? "..." : summary.saldo.toLocaleString("pt-BR", {
-                style: "currency",
-                currency: "BRL",
-              })}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Transações</p>
-            <p className="text-2xl font-semibold text-accent">
-              {isLoadingSummary ? "..." : summary.transacoes}
-            </p>
-          </div>
-        </div>
-      </Card>
+      {dfcQuery.isLoading ? (
+        <DfcChartsSkeleton />
+      ) : (
+        <DfcCharts
+          meses={meses}
+          linhas={dfcRows}
+          receitaCodigo={receitaCodigo}
+          despesaCodigo={despesaCodigo}
+          onReceitaCodigo={setReceitaCodigo}
+          onDespesaCodigo={setDespesaCodigo}
+          linhaSelecionada={linhaSelecionada}
+          onLinhaSelecionada={setLinhaSelecionada}
+        />
+      )}
     </div>
   );
 }
