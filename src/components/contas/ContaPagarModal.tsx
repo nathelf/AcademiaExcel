@@ -37,6 +37,7 @@ const formSchema = z.object({
   fornecedor_id: z.string().optional(),
   descricao: z.string().min(1, "Descrição é obrigatória").max(500),
   categoria_id: z.string().optional(),
+  subcategoria_id: z.string().optional(),
   centro_custo_id: z.string().optional(),
   valor: z.string().min(1, "Valor é obrigatório"),
   forma_pagamento_id: z.string().optional(),
@@ -57,6 +58,7 @@ interface ContaPagarModalProps {
     fornecedor_id: string | null;
     descricao: string;
     categoria_id: string | null;
+    subcategoria_id: string | null;
     centro_custo_id: string | null;
     valor: number;
     forma_pagamento_id: string | null;
@@ -70,8 +72,10 @@ export function ContaPagarModal({ open, onClose, onSuccess, editData }: ContaPag
   const [isLoading, setIsLoading] = useState(false);
   const [fornecedores, setFornecedores] = useState<{ id: string; nome: string }[]>([]);
   const [categorias, setCategorias] = useState<{ id: string; nome: string }[]>([]);
+  const [subcategorias, setSubcategorias] = useState<{ id: string; nome: string; categoria_id: string }[]>([]);
   const [centrosCusto, setCentrosCusto] = useState<{ id: string; nome: string }[]>([]);
   const [formasPagamento, setFormasPagamento] = useState<{ id: string; nome: string }[]>([]);
+  const categoriaSelecionada = form.watch("categoria_id");
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -81,6 +85,7 @@ export function ContaPagarModal({ open, onClose, onSuccess, editData }: ContaPag
       fornecedor_id: "",
       descricao: "",
       categoria_id: "",
+      subcategoria_id: "",
       centro_custo_id: "",
       valor: "",
       forma_pagamento_id: "",
@@ -103,6 +108,7 @@ export function ContaPagarModal({ open, onClose, onSuccess, editData }: ContaPag
         fornecedor_id: editData.fornecedor_id || "",
         descricao: editData.descricao,
         categoria_id: editData.categoria_id || "",
+        subcategoria_id: editData.subcategoria_id || "",
         centro_custo_id: editData.centro_custo_id || "",
         valor: editData.valor.toString(),
         forma_pagamento_id: editData.forma_pagamento_id || "",
@@ -116,6 +122,7 @@ export function ContaPagarModal({ open, onClose, onSuccess, editData }: ContaPag
         fornecedor_id: "",
         descricao: "",
         categoria_id: "",
+        subcategoria_id: "",
         centro_custo_id: "",
         valor: "",
         forma_pagamento_id: "",
@@ -126,18 +133,32 @@ export function ContaPagarModal({ open, onClose, onSuccess, editData }: ContaPag
   }, [editData, open]);
 
   const loadSelectOptions = async () => {
-    const [fornecedoresRes, categoriasRes, centrosCustoRes, formasPagamentoRes] = await Promise.all([
+    const [fornecedoresRes, categoriasRes, subcategoriasRes, centrosCustoRes, formasPagamentoRes] =
+      await Promise.all([
       supabase.from('fornecedores').select('id, nome').order('nome'),
       supabase.from('categorias').select('id, nome').in('tipo', ['despesa', 'ambos']).order('nome'),
+      supabase.from('subcategorias').select('id, nome, categoria_id').order('nome'),
       supabase.from('centros_custo').select('id, nome').order('nome'),
       supabase.from('formas_pagamento').select('id, nome').order('nome'),
     ]);
 
     if (fornecedoresRes.data) setFornecedores(fornecedoresRes.data);
     if (categoriasRes.data) setCategorias(categoriasRes.data);
+    if (subcategoriasRes.data) setSubcategorias(subcategoriasRes.data);
     if (centrosCustoRes.data) setCentrosCusto(centrosCustoRes.data);
     if (formasPagamentoRes.data) setFormasPagamento(formasPagamentoRes.data);
   };
+
+  useEffect(() => {
+    const current = form.getValues("subcategoria_id");
+    if (!categoriaSelecionada) {
+      if (current) form.setValue("subcategoria_id", "");
+      return;
+    }
+    if (!subcategorias.some((sub) => sub.id === current && sub.categoria_id === categoriaSelecionada)) {
+      form.setValue("subcategoria_id", "");
+    }
+  }, [categoriaSelecionada, subcategorias, form]);
 
   const onSubmit = async (data: FormData) => {
     if (!empresaId) {
@@ -154,6 +175,7 @@ export function ContaPagarModal({ open, onClose, onSuccess, editData }: ContaPag
       fornecedor_id: data.fornecedor_id || null,
       descricao: data.descricao,
       categoria_id: data.categoria_id || null,
+      subcategoria_id: data.subcategoria_id || null,
       centro_custo_id: data.centro_custo_id || null,
       valor: parseFloat(data.valor.replace(',', '.')),
       forma_pagamento_id: data.forma_pagamento_id || null,
@@ -187,6 +209,10 @@ export function ContaPagarModal({ open, onClose, onSuccess, editData }: ContaPag
     onSuccess();
     onClose();
   };
+
+  const subcategoriasFiltradas = categoriaSelecionada
+    ? subcategorias.filter((sub) => sub.categoria_id === categoriaSelecionada)
+    : [];
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -319,6 +345,41 @@ export function ContaPagarModal({ open, onClose, onSuccess, editData }: ContaPag
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="subcategoria_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Subcategoria</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    disabled={!categoriaSelecionada}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={
+                            categoriaSelecionada
+                              ? "Selecione"
+                              : "Selecione uma categoria"
+                          }
+                        />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {subcategoriasFiltradas.map((sub) => (
+                        <SelectItem key={sub.id} value={sub.id}>
+                          {sub.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <FormField

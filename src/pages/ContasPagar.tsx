@@ -1,8 +1,16 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { DataTable, Column } from "@/components/ui/DataTable";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EditableCell } from "@/components/ui/EditableCell";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Edit, Trash2, CheckCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -29,6 +37,8 @@ interface ContaPagar {
   descricao: string;
   categoria_id: string | null;
   categoria_nome: string | null;
+  subcategoria_id: string | null;
+  subcategoria_nome: string | null;
   centro_custo_id: string | null;
   centro_custo_nome: string | null;
   valor: number;
@@ -53,7 +63,14 @@ const formatDate = (dateStr: string) => {
 
 export default function ContasPagar() {
   const { empresaId } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState<ContaPagar[]>([]);
+  const [subcategorias, setSubcategorias] = useState<
+    { id: string; nome: string; categoria_id: string }[]
+  >([]);
+  const [subcategoriaFiltro, setSubcategoriaFiltro] = useState(
+    searchParams.get("subcategoria") ?? "all"
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editData, setEditData] = useState<ContaPagar | null>(null);
@@ -69,26 +86,40 @@ export default function ContasPagar() {
     if (!empresaId) return;
 
     setIsLoading(true);
-    const { data: contas, error } = await supabase
-      .from("contas_pagar")
-      .select(`
-        *,
-        fornecedores(nome),
-        categorias(nome),
-        centros_custo(nome),
-        formas_pagamento(nome)
-      `)
-      .order("data_vencimento", { ascending: true });
+    const [contasRes, subcategoriasRes] = await Promise.all([
+      supabase
+        .from("contas_pagar")
+        .select(`
+          *,
+          fornecedores(nome),
+          categorias(nome),
+          subcategorias(nome),
+          centros_custo(nome),
+          formas_pagamento(nome)
+        `)
+        .order("data_vencimento", { ascending: true }),
+      supabase
+        .from("subcategorias")
+        .select("id, nome, categoria_id")
+        .eq("empresa_id", empresaId)
+        .order("nome"),
+    ]);
 
-    if (error) {
-      toast.error("Erro ao carregar dados: " + error.message);
+    if (contasRes.error) {
+      toast.error("Erro ao carregar dados: " + contasRes.error.message);
       setIsLoading(false);
       return;
     }
 
+    if (subcategoriasRes.error) {
+      toast.error("Erro ao carregar subcategorias: " + subcategoriasRes.error.message);
+    } else if (subcategoriasRes.data) {
+      setSubcategorias(subcategoriasRes.data);
+    }
+
     // Check for overdue status
     const today = new Date().toISOString().split('T')[0];
-    const processedData = (contas || []).map((conta) => {
+    const processedData = (contasRes.data || []).map((conta) => {
       let status = conta.status;
       if (status === 'pendente' && conta.data_vencimento < today) {
         status = 'atrasado';
@@ -102,6 +133,8 @@ export default function ContasPagar() {
         descricao: conta.descricao,
         categoria_id: conta.categoria_id,
         categoria_nome: conta.categorias?.nome || null,
+        subcategoria_id: conta.subcategoria_id,
+        subcategoria_nome: conta.subcategorias?.nome || null,
         centro_custo_id: conta.centro_custo_id,
         centro_custo_nome: conta.centros_custo?.nome || null,
         valor: Number(conta.valor),
@@ -123,6 +156,16 @@ export default function ContasPagar() {
       fetchData();
     }
   }, [empresaId]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+    if (subcategoriaFiltro === "all") {
+      params.delete("subcategoria");
+    } else {
+      params.set("subcategoria", subcategoriaFiltro);
+    }
+    setSearchParams(params, { replace: true });
+  }, [subcategoriaFiltro, searchParams, setSearchParams]);
 
   const handleEdit = (item: ContaPagar) => {
     setEditData(item);
@@ -147,6 +190,8 @@ export default function ContasPagar() {
     
     if (field === 'valor') {
       updateData[field] = parseFloat(value.replace(',', '.'));
+    } else if (field === "subcategoria_id") {
+      updateData[field] = value === "none" ? null : value;
     } else {
       updateData[field] = value;
     }
@@ -211,6 +256,37 @@ export default function ContasPagar() {
       header: "Categoria",
       sortable: true,
       render: (item) => item.categoria_nome || "-",
+    },
+    {
+      key: "subcategoria_nome",
+      header: "Subcategoria",
+      sortable: true,
+      render: (item) => {
+        const options = subcategorias.filter(
+          (sub) => sub.categoria_id === item.categoria_id
+        );
+        return (
+          <Select
+            value={item.subcategoria_id || "none"}
+            onValueChange={(value) => handleInlineUpdate(item.id, "subcategoria_id", value)}
+            disabled={!item.categoria_id}
+          >
+            <SelectTrigger className="h-8 bg-background">
+              <SelectValue
+                placeholder={item.categoria_id ? "Selecione" : "Sem categoria"}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Sem subcategoria</SelectItem>
+              {options.map((sub) => (
+                <SelectItem key={sub.id} value={sub.id}>
+                  {sub.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      },
     },
     {
       key: "centro_custo_nome",
@@ -340,8 +416,21 @@ export default function ContasPagar() {
           setEditData(null);
           setModalOpen(true);
         }}
-        onExport={() => toast.info("Exportação em desenvolvimento")}
+        onExport={(filteredData) =>
+          toast.info(`Exportação em desenvolvimento (${filteredData.length} registros)`)
+        }
         searchPlaceholder="Buscar por fornecedor, descrição..."
+        filterKey="subcategoria_id"
+        filterValue={subcategoriaFiltro}
+        onFilterChange={setSubcategoriaFiltro}
+        filterPlaceholder="Subcategoria"
+        filterOptions={[
+          { value: "all", label: "Todas as Subcategorias" },
+          ...subcategorias.map((sub) => ({
+            value: sub.id,
+            label: sub.nome,
+          })),
+        ]}
       />
 
       {/* Modal */}

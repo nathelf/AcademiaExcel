@@ -1,7 +1,11 @@
-import { Calendar, Download, FileSpreadsheet, FileText, Filter } from "lucide-react";
+import { Calendar, Download, FileSpreadsheet, FileText, Filter, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Select,
   SelectContent,
@@ -38,6 +42,160 @@ const reports = [
 ];
 
 export default function Relatorios() {
+  const { empresaId } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [subcategorias, setSubcategorias] = useState<{ id: string; nome: string }[]>([]);
+  const [periodoFiltro, setPeriodoFiltro] = useState(
+    searchParams.get("periodo") ?? "mes"
+  );
+  const [statusFiltro, setStatusFiltro] = useState(
+    searchParams.get("status") ?? "all"
+  );
+  const [clienteFiltro, setClienteFiltro] = useState(
+    searchParams.get("cliente") ?? "all"
+  );
+  const [fornecedorFiltro, setFornecedorFiltro] = useState(
+    searchParams.get("fornecedor") ?? "all"
+  );
+  const [subcategoriaFiltro, setSubcategoriaFiltro] = useState(
+    searchParams.get("subcategoria") ?? "all"
+  );
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [summary, setSummary] = useState({
+    receitas: 0,
+    despesas: 0,
+    saldo: 0,
+    transacoes: 0,
+  });
+  const subcategoriaSelecionada =
+    subcategoriaFiltro !== "all"
+      ? subcategorias.find((sub) => sub.id === subcategoriaFiltro)?.nome
+      : null;
+
+  useEffect(() => {
+    const fetchSubcategorias = async () => {
+      if (!empresaId) return;
+      const { data, error } = await supabase
+        .from("subcategorias")
+        .select("id, nome")
+        .eq("empresa_id", empresaId)
+        .order("nome");
+
+      if (error) {
+        toast.error("Erro ao carregar subcategorias: " + error.message);
+        return;
+      }
+
+      setSubcategorias(data ?? []);
+    };
+
+    fetchSubcategorias();
+  }, [empresaId]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+
+    if (periodoFiltro === "mes") {
+      params.delete("periodo");
+    } else {
+      params.set("periodo", periodoFiltro);
+    }
+
+    if (statusFiltro === "all") {
+      params.delete("status");
+    } else {
+      params.set("status", statusFiltro);
+    }
+
+    if (clienteFiltro === "all") {
+      params.delete("cliente");
+    } else {
+      params.set("cliente", clienteFiltro);
+    }
+
+    if (fornecedorFiltro === "all") {
+      params.delete("fornecedor");
+    } else {
+      params.set("fornecedor", fornecedorFiltro);
+    }
+
+    if (subcategoriaFiltro === "all") {
+      params.delete("subcategoria");
+    } else {
+      params.set("subcategoria", subcategoriaFiltro);
+    }
+
+    setSearchParams(params, { replace: true });
+  }, [
+    periodoFiltro,
+    statusFiltro,
+    clienteFiltro,
+    fornecedorFiltro,
+    subcategoriaFiltro,
+    searchParams,
+    setSearchParams,
+  ]);
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+      if (!empresaId) return;
+      setIsLoadingSummary(true);
+
+      const subcategoriaFilter =
+        subcategoriaFiltro !== "all" ? subcategoriaFiltro : null;
+
+      let contasReceberQuery = supabase
+        .from("contas_receber")
+        .select("id, valor");
+      let contasPagarQuery = supabase
+        .from("contas_pagar")
+        .select("id, valor");
+
+      if (subcategoriaFilter) {
+        contasReceberQuery = contasReceberQuery.eq("subcategoria_id", subcategoriaFilter);
+        contasPagarQuery = contasPagarQuery.eq("subcategoria_id", subcategoriaFilter);
+      }
+
+      const [receberRes, pagarRes] = await Promise.all([
+        contasReceberQuery,
+        contasPagarQuery,
+      ]);
+
+      if (receberRes.error) {
+        toast.error("Erro ao carregar receitas: " + receberRes.error.message);
+        setIsLoadingSummary(false);
+        return;
+      }
+
+      if (pagarRes.error) {
+        toast.error("Erro ao carregar despesas: " + pagarRes.error.message);
+        setIsLoadingSummary(false);
+        return;
+      }
+
+      const receitas = (receberRes.data ?? []).reduce(
+        (sum, item) => sum + Number(item.valor),
+        0
+      );
+      const despesas = (pagarRes.data ?? []).reduce(
+        (sum, item) => sum + Number(item.valor),
+        0
+      );
+      const transacoes =
+        (receberRes.data?.length ?? 0) + (pagarRes.data?.length ?? 0);
+
+      setSummary({
+        receitas,
+        despesas,
+        saldo: receitas - despesas,
+        transacoes,
+      });
+      setIsLoadingSummary(false);
+    };
+
+    fetchSummary();
+  }, [empresaId, subcategoriaFiltro]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -55,7 +213,7 @@ export default function Relatorios() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
-            <Select defaultValue="mes">
+            <Select value={periodoFiltro} onValueChange={setPeriodoFiltro}>
               <SelectTrigger className="w-40 bg-background">
                 <SelectValue placeholder="Período" />
               </SelectTrigger>
@@ -71,7 +229,7 @@ export default function Relatorios() {
 
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select defaultValue="all">
+            <Select value={statusFiltro} onValueChange={setStatusFiltro}>
               <SelectTrigger className="w-40 bg-background">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -84,7 +242,7 @@ export default function Relatorios() {
             </Select>
           </div>
 
-          <Select defaultValue="all">
+          <Select value={clienteFiltro} onValueChange={setClienteFiltro}>
             <SelectTrigger className="w-48 bg-background">
               <SelectValue placeholder="Cliente" />
             </SelectTrigger>
@@ -96,7 +254,7 @@ export default function Relatorios() {
             </SelectContent>
           </Select>
 
-          <Select defaultValue="all">
+          <Select value={fornecedorFiltro} onValueChange={setFornecedorFiltro}>
             <SelectTrigger className="w-48 bg-background">
               <SelectValue placeholder="Fornecedor" />
             </SelectTrigger>
@@ -107,6 +265,23 @@ export default function Relatorios() {
               <SelectItem value="3">Logística Express</SelectItem>
             </SelectContent>
           </Select>
+
+          <div className="flex items-center gap-2">
+            <Tags className="h-4 w-4 text-muted-foreground" />
+            <Select value={subcategoriaFiltro} onValueChange={setSubcategoriaFiltro}>
+              <SelectTrigger className="w-56 bg-background">
+                <SelectValue placeholder="Subcategoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as Subcategorias</SelectItem>
+                {subcategorias.map((sub) => (
+                  <SelectItem key={sub.id} value={sub.id}>
+                    {sub.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </Card>
 
@@ -133,7 +308,15 @@ export default function Relatorios() {
                     variant="outline"
                     size="sm"
                     className="gap-2"
-                    onClick={() => toast.info(`Exportar ${report.title} em Excel`)}
+                    onClick={() =>
+                      toast.info(
+                        `Exportar ${report.title} em Excel${
+                          subcategoriaSelecionada
+                            ? ` (Subcategoria: ${subcategoriaSelecionada})`
+                            : ""
+                        }`
+                      )
+                    }
                   >
                     <FileSpreadsheet className="h-4 w-4" />
                     Excel
@@ -142,7 +325,15 @@ export default function Relatorios() {
                     variant="outline"
                     size="sm"
                     className="gap-2"
-                    onClick={() => toast.info(`Exportar ${report.title} em PDF`)}
+                    onClick={() =>
+                      toast.info(
+                        `Exportar ${report.title} em PDF${
+                          subcategoriaSelecionada
+                            ? ` (Subcategoria: ${subcategoriaSelecionada})`
+                            : ""
+                        }`
+                      )
+                    }
                   >
                     <Download className="h-4 w-4" />
                     PDF
@@ -162,19 +353,36 @@ export default function Relatorios() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div>
             <p className="text-sm text-muted-foreground">Receitas</p>
-            <p className="text-2xl font-semibold text-primary">R$ 125.800</p>
+            <p className="text-2xl font-semibold text-primary">
+              {isLoadingSummary ? "..." : summary.receitas.toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}
+            </p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Despesas</p>
-            <p className="text-2xl font-semibold text-destructive">R$ 78.450</p>
+            <p className="text-2xl font-semibold text-destructive">
+              {isLoadingSummary ? "..." : summary.despesas.toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}
+            </p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Saldo</p>
-            <p className="text-2xl font-semibold text-foreground">R$ 47.350</p>
+            <p className="text-2xl font-semibold text-foreground">
+              {isLoadingSummary ? "..." : summary.saldo.toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}
+            </p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Transações</p>
-            <p className="text-2xl font-semibold text-accent">142</p>
+            <p className="text-2xl font-semibold text-accent">
+              {isLoadingSummary ? "..." : summary.transacoes}
+            </p>
           </div>
         </div>
       </Card>

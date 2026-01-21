@@ -37,6 +37,7 @@ const formSchema = z.object({
   cliente_id: z.string().optional(),
   descricao: z.string().min(1, "Descrição é obrigatória").max(500),
   categoria_id: z.string().optional(),
+  subcategoria_id: z.string().optional(),
   valor: z.string().min(1, "Valor é obrigatório"),
   forma_pagamento_id: z.string().optional(),
   observacoes: z.string().optional(),
@@ -55,6 +56,7 @@ interface ContaReceberModalProps {
     cliente_id: string | null;
     descricao: string;
     categoria_id: string | null;
+    subcategoria_id: string | null;
     valor: number;
     forma_pagamento_id: string | null;
     observacoes: string | null;
@@ -66,7 +68,9 @@ export function ContaReceberModal({ open, onClose, onSuccess, editData }: ContaR
   const [isLoading, setIsLoading] = useState(false);
   const [clientes, setClientes] = useState<{ id: string; nome: string }[]>([]);
   const [categorias, setCategorias] = useState<{ id: string; nome: string }[]>([]);
+  const [subcategorias, setSubcategorias] = useState<{ id: string; nome: string; categoria_id: string }[]>([]);
   const [formasPagamento, setFormasPagamento] = useState<{ id: string; nome: string }[]>([]);
+  const categoriaSelecionada = form.watch("categoria_id");
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -76,6 +80,7 @@ export function ContaReceberModal({ open, onClose, onSuccess, editData }: ContaR
       cliente_id: "",
       descricao: "",
       categoria_id: "",
+      subcategoria_id: "",
       valor: "",
       forma_pagamento_id: "",
       observacoes: "",
@@ -96,6 +101,7 @@ export function ContaReceberModal({ open, onClose, onSuccess, editData }: ContaR
         cliente_id: editData.cliente_id || "",
         descricao: editData.descricao,
         categoria_id: editData.categoria_id || "",
+        subcategoria_id: editData.subcategoria_id || "",
         valor: editData.valor.toString(),
         forma_pagamento_id: editData.forma_pagamento_id || "",
         observacoes: editData.observacoes || "",
@@ -107,6 +113,7 @@ export function ContaReceberModal({ open, onClose, onSuccess, editData }: ContaR
         cliente_id: "",
         descricao: "",
         categoria_id: "",
+        subcategoria_id: "",
         valor: "",
         forma_pagamento_id: "",
         observacoes: "",
@@ -115,16 +122,29 @@ export function ContaReceberModal({ open, onClose, onSuccess, editData }: ContaR
   }, [editData, open]);
 
   const loadSelectOptions = async () => {
-    const [clientesRes, categoriasRes, formasPagamentoRes] = await Promise.all([
+    const [clientesRes, categoriasRes, subcategoriasRes, formasPagamentoRes] = await Promise.all([
       supabase.from('clientes').select('id, nome').order('nome'),
       supabase.from('categorias').select('id, nome').in('tipo', ['receita', 'ambos']).order('nome'),
+      supabase.from('subcategorias').select('id, nome, categoria_id').order('nome'),
       supabase.from('formas_pagamento').select('id, nome').order('nome'),
     ]);
 
     if (clientesRes.data) setClientes(clientesRes.data);
     if (categoriasRes.data) setCategorias(categoriasRes.data);
+    if (subcategoriasRes.data) setSubcategorias(subcategoriasRes.data);
     if (formasPagamentoRes.data) setFormasPagamento(formasPagamentoRes.data);
   };
+
+  useEffect(() => {
+    const current = form.getValues("subcategoria_id");
+    if (!categoriaSelecionada) {
+      if (current) form.setValue("subcategoria_id", "");
+      return;
+    }
+    if (!subcategorias.some((sub) => sub.id === current && sub.categoria_id === categoriaSelecionada)) {
+      form.setValue("subcategoria_id", "");
+    }
+  }, [categoriaSelecionada, subcategorias, form]);
 
   const onSubmit = async (data: FormData) => {
     if (!empresaId) {
@@ -141,6 +161,7 @@ export function ContaReceberModal({ open, onClose, onSuccess, editData }: ContaR
       cliente_id: data.cliente_id || null,
       descricao: data.descricao,
       categoria_id: data.categoria_id || null,
+      subcategoria_id: data.subcategoria_id || null,
       valor: parseFloat(data.valor.replace(',', '.')),
       forma_pagamento_id: data.forma_pagamento_id || null,
       observacoes: data.observacoes || null,
@@ -172,6 +193,10 @@ export function ContaReceberModal({ open, onClose, onSuccess, editData }: ContaR
     onSuccess();
     onClose();
   };
+
+  const subcategoriasFiltradas = categoriaSelecionada
+    ? subcategorias.filter((sub) => sub.categoria_id === categoriaSelecionada)
+    : [];
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -297,6 +322,41 @@ export function ContaReceberModal({ open, onClose, onSuccess, editData }: ContaR
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="subcategoria_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Subcategoria</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    disabled={!categoriaSelecionada}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={
+                            categoriaSelecionada
+                              ? "Selecione"
+                              : "Selecione uma categoria"
+                          }
+                        />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {subcategoriasFiltradas.map((sub) => (
+                        <SelectItem key={sub.id} value={sub.id}>
+                          {sub.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

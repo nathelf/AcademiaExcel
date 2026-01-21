@@ -51,6 +51,9 @@ export default function Configuracoes() {
   const [savedEmpresa, setSavedEmpresa] = useState(defaultEmpresa);
   const [empresa, setEmpresa] = useState(defaultEmpresa);
   const [categorias, setCategorias] = useState(initialCategorias);
+  const [subcategorias, setSubcategorias] = useState<
+    { id: string; nome: string; categoria_id: string }[]
+  >([]);
   const [centrosCusto, setCentrosCusto] = useState(initialCentrosCusto);
   const [formasPagamento, setFormasPagamento] = useState(initialFormasPagamento);
 
@@ -59,6 +62,10 @@ export default function Configuracoes() {
   const [categoriaEditId, setCategoriaEditId] = useState<string | null>(null);
   const [categoriaEditNome, setCategoriaEditNome] = useState("");
   const [categoriaEditTipo, setCategoriaEditTipo] = useState<"receita" | "despesa">("despesa");
+  const [categoriaSelecionadaId, setCategoriaSelecionadaId] = useState("");
+  const [novaSubcategoria, setNovaSubcategoria] = useState("");
+  const [subcategoriaEditId, setSubcategoriaEditId] = useState<string | null>(null);
+  const [subcategoriaEditNome, setSubcategoriaEditNome] = useState("");
 
   const [novoCentro, setNovoCentro] = useState("");
   const [centroEditId, setCentroEditId] = useState<string | null>(null);
@@ -146,6 +153,7 @@ export default function Configuracoes() {
     }
 
     setCategorias((prev) => [...prev, data]);
+    setCategoriaSelecionadaId((prev) => prev || data.id);
     setNovaCategoria("");
     toast.success("Categoria adicionada.");
   };
@@ -201,7 +209,97 @@ export default function Configuracoes() {
       return;
     }
     setCategorias((prev) => prev.filter((cat) => cat.id !== id));
+    setSubcategorias((prev) => prev.filter((sub) => sub.categoria_id !== id));
+    setCategoriaSelecionadaId((prev) => {
+      if (prev !== id) return prev;
+      const remaining = categorias.filter((cat) => cat.id !== id);
+      return remaining[0]?.id ?? "";
+    });
     toast.message("Categoria removida.");
+  };
+
+  const handleAddSubcategoria = async () => {
+    if (!novaSubcategoria.trim()) {
+      toast.error("Informe o nome da subcategoria.");
+      return;
+    }
+    if (!empresaId) {
+      toast.error("Empresa não identificada.");
+      return;
+    }
+    if (!categoriaSelecionadaId) {
+      toast.error("Selecione uma categoria.");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("subcategorias")
+      .insert({
+        empresa_id: empresaId,
+        categoria_id: categoriaSelecionadaId,
+        nome: novaSubcategoria.trim(),
+      })
+      .select("id, nome, categoria_id")
+      .single();
+
+    if (error) {
+      toast.error("Erro ao adicionar subcategoria: " + error.message);
+      return;
+    }
+
+    setSubcategorias((prev) => [...prev, data]);
+    setNovaSubcategoria("");
+    toast.success("Subcategoria adicionada.");
+  };
+
+  const handleEditSubcategoria = (id: string) => {
+    const current = subcategorias.find((sub) => sub.id === id);
+    if (!current) return;
+    setSubcategoriaEditId(id);
+    setSubcategoriaEditNome(current.nome);
+  };
+
+  const handleSaveSubcategoria = async () => {
+    if (!subcategoriaEditId) return;
+    if (!subcategoriaEditNome.trim()) {
+      toast.error("Informe o nome da subcategoria.");
+      return;
+    }
+    const { error } = await supabase
+      .from("subcategorias")
+      .update({
+        nome: subcategoriaEditNome.trim(),
+      })
+      .eq("id", subcategoriaEditId);
+
+    if (error) {
+      toast.error("Erro ao atualizar subcategoria: " + error.message);
+      return;
+    }
+
+    setSubcategorias((prev) =>
+      prev.map((sub) =>
+        sub.id === subcategoriaEditId ? { ...sub, nome: subcategoriaEditNome.trim() } : sub
+      )
+    );
+    setSubcategoriaEditId(null);
+    setSubcategoriaEditNome("");
+    toast.success("Subcategoria atualizada.");
+  };
+
+  const handleCancelSubcategoria = () => {
+    setSubcategoriaEditId(null);
+    setSubcategoriaEditNome("");
+  };
+
+  const handleDeleteSubcategoria = async (id: string) => {
+    const { error } = await supabase.from("subcategorias").delete().eq("id", id);
+    if (error) {
+      toast.error("Erro ao remover subcategoria: " + error.message);
+      return;
+    }
+    setSubcategorias((prev) => prev.filter((sub) => sub.id !== id));
+    toast.message("Subcategoria removida.");
   };
 
   const handleAddCentro = async () => {
@@ -363,7 +461,8 @@ export default function Configuracoes() {
       if (!empresaId) return;
       setIsLoading(true);
 
-      const [empresaRes, categoriasRes, centrosRes, formasRes] = await Promise.all([
+      const [empresaRes, categoriasRes, subcategoriasRes, centrosRes, formasRes] =
+        await Promise.all([
         supabase
           .from("empresas")
           .select("id, nome, cnpj, email, telefone, endereco")
@@ -372,6 +471,10 @@ export default function Configuracoes() {
         supabase
           .from("categorias")
           .select("id, nome, tipo")
+          .eq("empresa_id", empresaId),
+        supabase
+          .from("subcategorias")
+          .select("id, nome, categoria_id")
           .eq("empresa_id", empresaId),
         supabase
           .from("centros_custo")
@@ -412,6 +515,17 @@ export default function Configuracoes() {
         toast.error("Erro ao carregar categorias: " + categoriasRes.error.message);
       } else if (categoriasRes.data) {
         setCategorias(categoriasRes.data);
+        setCategoriaSelecionadaId((prev) => {
+          const stillExists = categoriasRes.data.some((cat) => cat.id === prev);
+          if (stillExists) return prev;
+          return categoriasRes.data[0]?.id ?? "";
+        });
+      }
+
+      if (subcategoriasRes.error) {
+        toast.error("Erro ao carregar subcategorias: " + subcategoriasRes.error.message);
+      } else if (subcategoriasRes.data) {
+        setSubcategorias(subcategoriasRes.data);
       }
 
       if (centrosRes.error) {
@@ -431,6 +545,10 @@ export default function Configuracoes() {
 
     fetchConfiguracoes();
   }, [empresaId]);
+
+  const subcategoriasFiltradas = subcategorias.filter(
+    (sub) => sub.categoria_id === categoriaSelecionadaId
+  );
 
   return (
     <div className="space-y-6">
@@ -633,6 +751,103 @@ export default function Configuracoes() {
                   )}
                 </div>
               ))}
+            </div>
+            <div className="mt-8 border-t border-border pt-6">
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="font-semibold text-foreground">Subcategorias</h4>
+                <Button size="sm" onClick={handleAddSubcategoria}>
+                  Nova Subcategoria
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+                <select
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  value={categoriaSelecionadaId}
+                  onChange={(e) => setCategoriaSelecionadaId(e.target.value)}
+                >
+                  <option value="" disabled>
+                    Selecione a categoria
+                  </option>
+                  {categorias.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.nome}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  placeholder="Nome da subcategoria"
+                  className="bg-background"
+                  value={novaSubcategoria}
+                  onChange={(e) => setNovaSubcategoria(e.target.value)}
+                />
+                <Button variant="outline" onClick={handleAddSubcategoria} disabled={!categoriaSelecionadaId}>
+                  Adicionar
+                </Button>
+              </div>
+              {categoriaSelecionadaId ? (
+                <div className="space-y-2">
+                  {subcategoriasFiltradas.map((sub) => (
+                    <div
+                      key={sub.id}
+                      className="flex items-center justify-between p-3 bg-background rounded-lg border border-border"
+                    >
+                      {subcategoriaEditId === sub.id ? (
+                        <>
+                          <div className="flex items-center gap-3 flex-1">
+                            <Tags className="h-4 w-4 text-muted-foreground" />
+                            <Input
+                              className="bg-background"
+                              value={subcategoriaEditNome}
+                              onChange={(e) => setSubcategoriaEditNome(e.target.value)}
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button variant="ghost" size="sm" onClick={handleSaveSubcategoria}>
+                              Salvar
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={handleCancelSubcategoria}>
+                              Cancelar
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-3">
+                            <Tags className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-foreground">{sub.nome}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditSubcategoria(sub.id)}
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteSubcategoria(sub.id)}
+                            >
+                              Excluir
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                  {subcategoriasFiltradas.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma subcategoria cadastrada para esta categoria.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Cadastre uma categoria e selecione para adicionar subcategorias.
+                </p>
+              )}
             </div>
           </Card>
         </TabsContent>

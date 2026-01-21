@@ -5,6 +5,7 @@ export type TableName =
   | "empresas"
   | "profiles"
   | "categorias"
+  | "subcategorias"
   | "centros_custo"
   | "formas_pagamento"
   | "auth_users";
@@ -15,6 +16,7 @@ interface LocalStore {
   empresas: LocalRecord[];
   profiles: LocalRecord[];
   categorias: LocalRecord[];
+  subcategorias: LocalRecord[];
   centros_custo: LocalRecord[];
   formas_pagamento: LocalRecord[];
   auth_users: LocalRecord[];
@@ -24,6 +26,7 @@ const defaultStore: LocalStore = {
   empresas: [],
   profiles: [],
   categorias: [],
+  subcategorias: [],
   centros_custo: [],
   formas_pagamento: [],
   auth_users: [],

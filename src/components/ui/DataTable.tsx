@@ -9,6 +9,13 @@ import {
 } from "lucide-react";
 import { Button } from "./button";
 import { Input } from "./input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./select";
 import { cn } from "@/lib/utils";
 
 export interface Column<T> {
@@ -24,8 +31,14 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   title: string;
   onAdd?: () => void;
-  onExport?: () => void;
+  onExport?: (data: T[]) => void;
   searchPlaceholder?: string;
+  filterKey?: keyof T | string;
+  filterOptions?: { value: string; label: string }[];
+  filterValue?: string;
+  onFilterChange?: (value: string) => void;
+  filterPlaceholder?: string;
+  filterAllValue?: string;
 }
 
 export function DataTable<T extends { id: string | number }>({
@@ -35,6 +48,12 @@ export function DataTable<T extends { id: string | number }>({
   onAdd,
   onExport,
   searchPlaceholder = "Buscar...",
+  filterKey,
+  filterOptions,
+  filterValue,
+  onFilterChange,
+  filterPlaceholder = "Filtrar...",
+  filterAllValue = "all",
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -49,7 +68,12 @@ export function DataTable<T extends { id: string | number }>({
     }
   };
 
-  const filteredData = data.filter((item) =>
+  const baseData =
+    filterKey && filterValue && filterValue !== filterAllValue
+      ? data.filter((item) => String(item[filterKey as keyof T]) === filterValue)
+      : data;
+
+  const filteredData = baseData.filter((item) =>
     Object.values(item).some((value) =>
       String(value).toLowerCase().includes(searchTerm.toLowerCase())
     )
@@ -79,11 +103,29 @@ export function DataTable<T extends { id: string | number }>({
               className="pl-9 w-64 bg-background"
             />
           </div>
+          {filterOptions && filterValue !== undefined && onFilterChange && (
+            <Select value={filterValue} onValueChange={onFilterChange}>
+              <SelectTrigger className="w-48 bg-background">
+                <SelectValue placeholder={filterPlaceholder} />
+              </SelectTrigger>
+              <SelectContent>
+                {filterOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button variant="outline" size="icon">
             <Filter className="h-4 w-4" />
           </Button>
           {onExport && (
-            <Button variant="outline" size="icon" onClick={onExport}>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onExport(sortedData)}
+            >
               <Download className="h-4 w-4" />
             </Button>
           )}

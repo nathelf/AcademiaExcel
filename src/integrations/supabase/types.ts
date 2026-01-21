@@ -46,6 +46,45 @@ export type Database = {
           },
         ]
       }
+      subcategorias: {
+        Row: {
+          categoria_id: string
+          created_at: string
+          empresa_id: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          categoria_id: string
+          created_at?: string
+          empresa_id: string
+          id?: string
+          nome: string
+        }
+        Update: {
+          categoria_id?: string
+          created_at?: string
+          empresa_id?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcategorias_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcategorias_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       centros_custo: {
         Row: {
           created_at: string
@@ -138,6 +177,7 @@ export type Database = {
           numero_documento: string | null
           observacoes: string | null
           status: Database["public"]["Enums"]["account_status"]
+          subcategoria_id: string | null
           updated_at: string
           valor: number
         }
@@ -156,6 +196,7 @@ export type Database = {
           numero_documento?: string | null
           observacoes?: string | null
           status?: Database["public"]["Enums"]["account_status"]
+          subcategoria_id?: string | null
           updated_at?: string
           valor: number
         }
@@ -174,6 +215,7 @@ export type Database = {
           numero_documento?: string | null
           observacoes?: string | null
           status?: Database["public"]["Enums"]["account_status"]
+          subcategoria_id?: string | null
           updated_at?: string
           valor?: number
         }
@@ -213,6 +255,13 @@ export type Database = {
             referencedRelation: "fornecedores"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "contas_pagar_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "subcategorias"
+            referencedColumns: ["id"]
+          },
         ]
       }
       contas_receber: {
@@ -229,6 +278,7 @@ export type Database = {
           id: string
           observacoes: string | null
           status: Database["public"]["Enums"]["account_status"]
+          subcategoria_id: string | null
           updated_at: string
           valor: number
         }
@@ -245,6 +295,7 @@ export type Database = {
           id?: string
           observacoes?: string | null
           status?: Database["public"]["Enums"]["account_status"]
+          subcategoria_id?: string | null
           updated_at?: string
           valor: number
         }
@@ -261,6 +312,7 @@ export type Database = {
           id?: string
           observacoes?: string | null
           status?: Database["public"]["Enums"]["account_status"]
+          subcategoria_id?: string | null
           updated_at?: string
           valor?: number
         }
@@ -291,6 +343,13 @@ export type Database = {
             columns: ["forma_pagamento_id"]
             isOneToOne: false
             referencedRelation: "formas_pagamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contas_receber_subcategoria_id_fkey"
+            columns: ["subcategoria_id"]
+            isOneToOne: false
+            referencedRelation: "subcategorias"
             referencedColumns: ["id"]
           },
         ]
